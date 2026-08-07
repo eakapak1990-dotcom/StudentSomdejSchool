@@ -1,0 +1,16 @@
+# clasp credentials (ห้าม push ขึ้น GitHub เด็ดขาด!)
+.clasprc.json
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

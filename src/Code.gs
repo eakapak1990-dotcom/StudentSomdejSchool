@@ -9,7 +9,7 @@
 function doGet(e) {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('ระบบงานกิจการนักศึกษา')
+    .setTitle(CONFIG.APP_NAME)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -17,16 +17,30 @@ function doGet(e) {
  * รับ HTTP POST request (สำหรับ API calls จาก Frontend)
  */
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  const action = data.action;
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action;
 
-  switch (action) {
-    // เพิ่ม action handlers ที่นี่
-    default:
-      return ContentService
-        .createTextOutput(JSON.stringify({ success: false, message: 'Unknown action' }))
-        .setMimeType(ContentService.MimeType.JSON);
+    switch (action) {
+      case 'login':
+        return jsonResponse_(handleLogin_(data.username, data.password));
+
+      // เพิ่ม action handlers อื่นๆ ต่อจากนี้ (เฟสถัดไป)
+
+      default:
+        return jsonResponse_({ success: false, message: 'Unknown action: ' + action });
+    }
+  } catch (err) {
+    return jsonResponse_({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message });
   }
+}
+
+/**
+ * Helper: ส่งค่ากลับเป็น JSON
+ */
+function jsonResponse_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**

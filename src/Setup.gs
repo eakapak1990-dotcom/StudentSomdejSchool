@@ -1,41 +1,105 @@
-// ============================================================
-// Setup - ติดตั้งและเริ่มต้นระบบ (รันครั้งแรกครั้งเดียว)
-// ============================================================
+// ============================================
+// SETUP.GS - รันครั้งเดียวเพื่อสร้างโครงสร้าง Sheet ทั้งหมด
+// วิธีใช้: เปิด Apps Script Editor -> เลือกฟังก์ชัน setupAllSheets -> กด Run
+// ============================================
+
+function setupAllSheets() {
+  const ss = getSpreadsheet();
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.STUDENTS, [
+    'StudentID', 'CitizenID', 'Prefix', 'FirstName', 'LastName', 'Gender',
+    'Grade', 'Room', 'No', 'DOB', 'Weight', 'Height', 'BloodType',
+    'Religion', 'Ethnicity', 'Nationality',
+    'Address_No', 'Address_Moo', 'Address_Road', 'Address_Tambon', 'Address_Amphoe', 'Address_Province',
+    'CurrentScore', 'EducationPhase', 'PhotoFileID', 'LineLinked',
+    'CreatedAt', 'UpdatedAt'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.PARENTS, [
+    'StudentID', 'ParentName', 'ParentRelation', 'ParentJob', 'ParentPhone',
+    'FatherName', 'FatherJob', 'MotherName', 'MotherJob', 'UpdatedAt'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.USERS, [
+    'UserID', 'Username', 'PasswordHash', 'FullName', 'Role',
+    'Active', 'LastLogin', 'CreatedAt'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.SCORE_LOGS, [
+    'LogID', 'StudentID', 'Type', 'Amount', 'Reason',
+    'RecordedBy', 'RecordedByName', 'Timestamp', 'EducationPhase'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.LEAVE_REQUESTS, [
+    'RequestID', 'StudentID', 'Reason', 'RequestedOutTime', 'RequestedInTime',
+    'Status', 'ApprovedBy', 'ApprovedByName', 'ApprovalReason',
+    'ActualOutTime', 'ActualInTime', 'CreatedAt', 'UpdatedAt'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.INVITATION_LETTERS, [
+    'LetterID', 'LetterNo', 'StudentID', 'Subject', 'Status',
+    'SignatureType', 'PdfFileID', 'CreatedBy', 'CreatedAt', 'ConfirmedAt'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.TIMELINE, [
+    'EventID', 'StudentID', 'EventType', 'Title', 'Description',
+    'RecordedBy', 'Timestamp'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.LINE_BINDINGS, [
+    'BindingID', 'StudentID', 'LineUserID', 'ParentDisplayName',
+    'BoundAt', 'Active'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.AUDIT_LOG, [
+    'LogID', 'UserID', 'UserName', 'Action', 'TargetSheet', 'TargetID',
+    'BeforeValue', 'AfterValue', 'Timestamp'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.CONFIG, [
+    'Key', 'Value', 'Description'
+  ]);
+
+  // ใส่ค่า Config เริ่มต้น
+  const configSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.CONFIG);
+  if (configSheet.getLastRow() === 1) {
+    configSheet.appendRow(['CURRENT_ACADEMIC_YEAR', '2569', 'ปีการศึกษาปัจจุบัน']);
+    configSheet.appendRow(['INITIAL_SCORE', '100', 'คะแนนเริ่มต้นของนักเรียน']);
+    configSheet.appendRow(['ALERT_INTERVAL', '20', 'แจ้งเตือนทุกๆ กี่คะแนนที่ลดลง']);
+  }
+
+  // สร้าง Admin เริ่มต้น
+  const usersSheet = ss.getSheetByName(CONFIG.SHEET_NAMES.USERS);
+  if (usersSheet.getLastRow() === 1) {
+    usersSheet.appendRow([
+      'USR0001', 'admin', hashPassword_('Admin@1234'), 'ผู้ดูแลระบบ',
+      CONFIG.ROLES.ADMIN, true, '', new Date()
+    ]);
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'ตั้งค่า Sheet ทั้งหมดเรียบร้อยแล้ว!\n\n' +
+    'Username: admin\nPassword: Admin@1234\n\n' +
+    '⚠️ กรุณาเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก'
+  );
+}
 
 /**
- * รันครั้งแรกเพื่อสร้าง Sheet tabs ทั้งหมดที่จำเป็น
+ * Helper: สร้าง Sheet พร้อม Headers
  */
-function setupSheets() {
-  const ss = getSpreadsheet();
-  const sheetsToCreate = [
-    { name: CONFIG.SHEET_NAMES.STUDENTS,   headers: ['รหัสนักศึกษา', 'ชื่อ-นามสกุล', 'สาขา', 'ชั้นปี', 'เบอร์โทร', 'อีเมล', 'สถานะ'] },
-    { name: CONFIG.SHEET_NAMES.ACTIVITIES, headers: ['รหัสกิจกรรม', 'ชื่อกิจกรรม', 'วันที่', 'สถานที่', 'ผู้รับผิดชอบ', 'จำนวนที่รับ', 'สถานะ'] },
-    { name: CONFIG.SHEET_NAMES.RECORDS,    headers: ['รหัส', 'รหัสนักศึกษา', 'รหัสกิจกรรม', 'วันที่ลงทะเบียน', 'สถานะ', 'หมายเหตุ'] },
-  ];
-
-  sheetsToCreate.forEach(({ name, headers }) => {
-    let sheet = ss.getSheetByName(name);
-
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-      Logger.log(`✅ สร้าง Sheet: ${name}`);
-    } else {
-      Logger.log(`⚠️ Sheet มีอยู่แล้ว: ${name}`);
-    }
-
-    // ใส่ Headers ถ้ายังว่างอยู่
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(headers);
-      sheet.getRange(1, 1, 1, headers.length)
-        .setFontWeight('bold')
-        .setBackground('#4A90D9')
-        .setFontColor('#FFFFFF');
-      sheet.setFrozenRows(1);
-    }
-  });
-
-  Logger.log('🎉 Setup เสร็จสมบูรณ์!');
-  SpreadsheetApp.flush();
+function createSheetWithHeaders_(ss, sheetName, headers) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length)
+      .setFontWeight('bold')
+      .setBackground('#152A52')
+      .setFontColor('#FFFFFF');
+  }
 }
 
 /**
@@ -44,10 +108,10 @@ function setupSheets() {
 function testConnection() {
   try {
     const ss = getSpreadsheet();
-    Logger.log(`✅ เชื่อมต่อสำเร็จ: ${ss.getName()}`);
-    Logger.log(`📋 จำนวน Sheets: ${ss.getSheets().length}`);
-    ss.getSheets().forEach(s => Logger.log(` - ${s.getName()}`));
+    Logger.log('✅ เชื่อมต่อสำเร็จ: ' + ss.getName());
+    Logger.log('📋 จำนวน Sheets: ' + ss.getSheets().length);
+    ss.getSheets().forEach(function(s) { Logger.log(' - ' + s.getName()); });
   } catch (e) {
-    Logger.log(`❌ Error: ${e.message}`);
+    Logger.log('❌ Error: ' + e.message);
   }
 }

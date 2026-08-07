@@ -5,7 +5,7 @@
 const CONFIG = {
   // ⚠️ ใส่ Spreadsheet ID ของ Google Sheets ที่ใช้เป็น Database
   // เปิด Google Sheets → URL จะเป็น: docs.google.com/spreadsheets/d/<<ID>>/edit
-  SPREADSHEET_ID: '',
+  SPREADSHEET_ID: '1X_lQTXUF8yLiCV-nkye7mfAmFyGjAdMuVvXk0jICAQA',
 
   SCRIPT_ID: '1X_lQTXUF8yLiCV-nkye7mfAmFyGjAdMuVvXk0jICAQA',
   WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbydTMIeXgYK-sd_FT8h4BsEinZeFfW-f71Dh6kRggBRIvfT1sTPMy6FTyt-XMKgaqxVMA/exec',

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    <?= CONFIG.APP_NAME ?>
+  </title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+  <?!= include('CSS'); ?>
+</head>
+
+<body>
+
+  <!-- ============ LOGIN SCREEN ============ -->
+  <div id="loginScreen">
+    <div class="login-left">
+      <div class="eyebrow">ระบบสารสนเทศโรงเรียน</div>
+      <h1>กลุ่มบริหาร<br>กิจการนักเรียน</h1>
+      <p>บริหารคะแนนความประพฤติ ติดตามพฤติกรรม ออกเอกสาร และแจ้งเตือนผู้ปกครองผ่าน LINE ในที่เดียว</p>
+    </div>
+    <div class="login-right">
+      <div class="login-card">
+        <div class="d-flex align-items-center gap-2 mb-4">
+          <div class="brand-mark">SA</div>
+          <div>
+            <div class="fw-bold" style="font-family:'Prompt'">เข้าสู่ระบบ</div>
+            <div class="text-secondary" style="font-size:.78rem">
+              <?= CONFIG.APP_NAME ?>
+            </div>
+          </div>
+        </div>
+
+        <div id="loginError" class="alert alert-danger py-2 small d-none"></div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ชื่อผู้ใช้</label>
+          <input type="text" class="form-control" id="username" placeholder="เช่น admin">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่าน</label>
+          <input type="password" class="form-control" id="password" placeholder="รหัสผ่าน">
+        </div>
+        <button class="btn btn-navy w-100 py-2" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+        <div class="text-center text-secondary mt-3" style="font-size:.75rem">v
+          <?= CONFIG.VERSION ?>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="appShell">
+    <div class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">SA</div>
+        <div>
+          <div class="name">กิจการนักเรียน</div>
+          <div class="sub">Student Affairs System</div>
+        </div>
+      </div>
+
+      <div class="nav-section-title">ภาพรวม</div>
+      <a class="nav-link-custom active" data-view="dashboard"><i class="bi bi-grid-1x2-fill"></i> แดชบอร์ด</a>
+
+      <div class="nav-section-title">งานหลัก</div>
+      <a class="nav-link-custom" data-view="students" data-perm="score"><i class="bi bi-people-fill"></i>
+        ฐานข้อมูลนักเรียน</a>
+      <a class="nav-link-custom" data-view="score" data-perm="score"><i class="bi bi-award-fill"></i>
+        เพิ่ม–ลดคะแนน</a>
+      <a class="nav-link-custom" data-view="leave" data-perm="approveLeave"><i class="bi bi-door-open-fill"></i>
+        คำร้องออกนอกโรงเรียน</a>
+      <a class="nav-link-custom" data-view="letters" data-perm="editDelete"><i class="bi bi-envelope-paper-fill"></i>
+        หนังสือเชิญผู้ปกครอง</a>
+      <a class="nav-link-custom" data-view="reports"><i class="bi bi-bar-chart-line-fill"></i>
+        รายงาน & สถิติ</a>
+
+      <div class="nav-section-title">ระบบ</div>
+      <a class="nav-link-custom" data-view="line" data-perm="editDelete"><i class="bi bi-line"></i> การแจ้งเตือน
+        LINE</a>
+      <a class="nav-link-custom" data-view="users" data-perm="manageSystem"><i class="bi bi-shield-lock-fill"></i>
+        ผู้ใช้งาน & สิทธิ์</a>
+
+      <div class="user-box">
+        <div class="avatar-mini" id="sbAvatar">-</div>
+        <div style="min-width:0">
+          <div class="text-white small fw-semibold text-truncate" id="sbName">-</div>
+          <div class="text-truncate" style="font-size:.7rem;color:#8c96b3" id="sbRole">-</div>
+        </div>
+        <i class="bi bi-box-arrow-right ms-auto text-white-50" style="cursor:pointer" onclick="doLogout()"
+          title="ออกจากระบบ"></i>
+      </div>
+    </div>
+
+    <div class="main-area">
+      <button class="btn btn-sm btn-navy mobile-toggle mb-3"
+        onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i> เมนู</button>
+
+      <div class="view active" id="view-dashboard">
+        <div class="topbar">
+          <div>
+            <h2>ภาพรวมวันนี้</h2>
+            <div class="desc">สรุปสถานการณ์ความประพฤตินักเรียนทั้งโรงเรียน</div>
+          </div>
+        </div>
+        <div class="alert alert-info small">ℹ️ ระบบเชื่อมต่อกับ Google Sheet เรียบร้อยแล้ว —
+          โมดูลนี้ยังใช้ข้อมูลตัวอย่าง (Mock Data) รอเชื่อมต่อ Sheet จริงในเฟสถัดไป</div>
+        <div id="dashboardMock"></div>
+      </div>
+
+      <div class="view" id="view-students">
+        <div class="topbar">
+          <div>
+            <h2>ฐานข้อมูลนักเรียน</h2>
+            <div class="desc">ค้นหาด้วยเลขประจำตัว เลขบัตรประชาชน ชื่อ–นามสกุล ระดับชั้น หรือห้องเรียน</div>
+          </div>
+          <button class="btn btn-gold btn-sm px-3" onclick="openAddStudentModal()"><i class="bi bi-plus-lg"></i>
+            เพิ่มนักเรียน</button>
+        </div>
+
+        <div class="card-panel mb-3">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+              <div class="search-box"><i class="bi bi-search text-secondary"></i>
+                <input id="studentSearch" placeholder="พิมพ์ชื่อ, เลขประจำตัว, เลขบัตรประชาชน..."
+                  oninput="debounceSearchStudents()">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <select class="form-select" id="filterGrade" onchange="loadStudents()">
+                <option value="">ทุกระดับชั้น</option>
+                <option value="ม.1">ม.1</option>
+                <option value="ม.2">ม.2</option>
+                <option value="ม.3">ม.3</option>
+                <option value="ม.4">ม.4</option>
+                <option value="ม.5">ม.5</option>
+                <option value="ม.6">ม.6</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <input class="form-control" id="filterRoom" placeholder="ห้อง เช่น 1/1" onchange="loadStudents()">
+            </div>
+            <div class="col-md-1 text-end">
+              <span class="badge-soft badge-navy" id="studentCount">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <div id="studentTableWrap">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>ชื่อ–นามสกุล</th>
+                  <th>เลขประจำตัว</th>
+                  <th>ชั้น/ห้อง</th>
+                  <th>คะแนนคงเหลือ</th>
+                  <th>สถานะ LINE</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="studentTableBody">
+                <tr>
+                  <td colspan="7" class="text-center text-secondary py-4">กำลังโหลด...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="view" id="view-profile">
+        <div class="topbar">
+          <button class="btn btn-sm btn-outline-secondary mb-2" onclick="switchView('students')"><i
+              class="bi bi-arrow-left"></i> กลับไปฐานข้อมูล</button>
+        </div>
+        <div id="profileContent"></div>
+      </div>
+
+      <div class="view" id="view-score">
+        <div class="topbar">
+          <h2>เพิ่ม–ลดคะแนน</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-leave">
+        <div class="topbar">
+          <h2>คำร้องออกนอกโรงเรียน</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-letters">
+        <div class="topbar">
+          <h2>หนังสือเชิญผู้ปกครอง</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-reports">
+        <div class="topbar">
+          <h2>รายงาน & สถิติ</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-line">
+        <div class="topbar">
+          <h2>การแจ้งเตือน LINE</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-users">
+        <div class="topbar">
+          <h2>ผู้ใช้งาน & สิทธิ์</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: เพิ่ม/แก้ไขนักเรียน ============ -->
+  <div class="modal fade" id="studentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="studentModalTitle">เพิ่มนักเรียนใหม่</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="sm_studentId">
+
+          <div class="alert alert-secondary py-2 small">
+            <i class="bi bi-info-circle"></i> ช่องที่มีเครื่องหมาย <span class="text-danger fw-bold">*</span> จำเป็นต้องกรอก
+          </div>
+
+          <div class="section-title"><span class="bar"></span> ข้อมูลส่วนตัว</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-3"><label class="form-label small">คำนำหน้า <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_prefix" required>
+                <option value="">-- เลือก --</option>
+                <option>เด็กชาย</option>
+                <option>เด็กหญิง</option>
+                <option>นาย</option>
+                <option>นางสาว</option>
+              </select>
+            </div>
+            <div class="col-md-4"><label class="form-label small">ชื่อ <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_firstName" required></div>
+            <div class="col-md-5"><label class="form-label small">นามสกุล <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_lastName" required></div>
+
+            <div class="col-md-3"><label class="form-label small">เพศ <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_gender" required>
+                <option value="">-- เลือก --</option>
+                <option>ชาย</option>
+                <option>หญิง</option>
+              </select>
+            </div>
+            <div class="col-md-3"><label class="form-label small">ระดับชั้น <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_grade" onchange="updateEducationPhaseLabel()" required>
+                <option value="ม.1">ม.1</option>
+                <option value="ม.2">ม.2</option>
+                <option value="ม.3">ม.3</option>
+                <option value="ม.4">ม.4</option>
+                <option value="ม.5">ม.5</option>
+                <option value="ม.6">ม.6</option>
+              </select>
+            </div>
+            <div class="col-md-3"><label class="form-label small">ห้อง <span class="text-danger">*</span></label><input class="form-control" id="sm_room"
+                placeholder="เช่น 1/1" required></div>
+            <div class="col-md-3"><label class="form-label small">เลขที่ <span class="text-danger">*</span></label><input class="form-control"
+                type="number" id="sm_no" required></div>
+
+            <div class="col-md-4"><label class="form-label small">เลขประจำตัวประชาชน <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_citizenId" maxlength="13" required></div>
+            <div class="col-md-4"><label class="form-label small">วันเดือนปีเกิด <span class="text-danger">*</span></label><input class="form-control"
+                type="date" id="sm_dob" required></div>
+            <div class="col-md-4"><label class="form-label small">หมู่เลือด</label><input class="form-control"
+                id="sm_bloodType" placeholder="เช่น O, A, B, AB"></div>
+
+            <div class="col-md-4"><label class="form-label small">น้ำหนัก (กก.)</label><input class="form-control"
+                type="number" id="sm_weight"></div>
+            <div class="col-md-4"><label class="form-label small">ส่วนสูง (ซม.)</label><input class="form-control"
+                type="number" id="sm_height"></div>
+            <div class="col-md-4"><label class="form-label small">สัญชาติ</label><input class="form-control"
+                id="sm_nationality" value="ไทย"></div>
+
+            <div class="col-md-4"><label class="form-label small">ศาสนา</label><input class="form-control"
+                id="sm_religion" value="พุทธ"></div>
+            <div class="col-md-4"><label class="form-label small">เชื้อชาติ</label><input class="form-control"
+                id="sm_ethnicity" value="ไทย"></div>
+            <div class="col-md-4"><label class="form-label small">รอบการศึกษา</label><input class="form-control"
+                id="sm_phaseLabel" disabled value="ม.ต้น"></div>
+          </div>
+
+          <div class="section-title"><span class="bar"></span> ที่อยู่</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-2"><label class="form-label small">บ้านเลขที่</label><input class="form-control"
+                id="sm_addressNo"></div>
+            <div class="col-md-2"><label class="form-label small">หมู่</label><input class="form-control"
+                id="sm_addressMoo"></div>
+            <div class="col-md-3"><label class="form-label small">ถนน</label><input class="form-control"
+                id="sm_addressRoad"></div>
+            <div class="col-md-3"><label class="form-label small">ตำบล</label><input class="form-control"
+                id="sm_addressTambon"></div>
+            <div class="col-md-2"><label class="form-label small">อำเภอ</label><input class="form-control"
+                id="sm_addressAmphoe"></div>
+            <div class="col-md-4"><label class="form-label small">จังหวัด</label><input class="form-control"
+                id="sm_addressProvince"></div>
+          </div>
+
+          <div class="section-title"><span class="bar"></span> ข้อมูลผู้ปกครอง</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-4"><label class="form-label small">ชื่อ-นามสกุลผู้ปกครอง <span class="text-danger">*</span></label><input
+                class="form-control" id="sm_parentName" required></div>
+            <div class="col-md-4"><label class="form-label small">ความเกี่ยวข้อง <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_parentRelation" required>
+                <option>บิดา</option>
+                <option>มารดา</option>
+                <option>ผู้ปกครอง</option>
+              </select>
+            </div>
+            <div class="col-md-4"><label class="form-label small">เบอร์โทรศัพท์ <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_parentPhone" required></div>
+
+            <div class="col-md-3"><label class="form-label small">ชื่อบิดา</label><input class="form-control"
+                id="sm_fatherName"></div>
+            <div class="col-md-3"><label class="form-label small">อาชีพบิดา</label><input class="form-control"
+                id="sm_fatherJob"></div>
+            <div class="col-md-3"><label class="form-label small">ชื่อมารดา</label><input class="form-control"
+                id="sm_motherName"></div>
+            <div class="col-md-3"><label class="form-label small">อาชีพมารดา</label><input class="form-control"
+                id="sm_motherJob"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button class="btn btn-navy" onclick="saveStudent()"><i class="bi bi-save2 me-1"></i> บันทึกข้อมูล</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <?!= include('JavaScript'); ?>
+</body>
+
+</html>

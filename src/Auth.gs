@@ -81,3 +81,22 @@ function validateSession_(token) {
   if (!sessionData) return null;
   return JSON.parse(sessionData);
 }
+
+// ============================================
+// Public Functions (สำหรับ google.script.run)
+// google.script.run เรียกฟังก์ชันที่มี _ ต่อท้ายไม่ได้
+// ============================================
+
+/**
+ * ฟังก์ชันสาธารณะสำหรับ Frontend เรียก Login
+ */
+function handleLoginFromClient(username, password) {
+  return handleLogin_(username, password);
+}
+
+/**
+ * ฟังก์ชันสาธารณะสำหรับ Frontend ตรวจสอบ Session
+ */
+function validateSessionFromClient(token) {
+  return validateSession_(token);
+}

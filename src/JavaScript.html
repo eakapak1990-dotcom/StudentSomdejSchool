@@ -1,0 +1,364 @@
+<script>
+  let currentUser = null;
+
+  /* ================= SESSION RESTORE ================= */
+  document.addEventListener('DOMContentLoaded', function () {
+    const savedUser = sessionStorage.getItem('sa_user');
+    const savedToken = sessionStorage.getItem('sa_token');
+
+    if (savedUser && savedToken) {
+      google.script.run
+        .withSuccessHandler(function (session) {
+          if (session) {
+            currentUser = JSON.parse(savedUser);
+            showAppShell_();
+          } else {
+            sessionStorage.removeItem('sa_token');
+            sessionStorage.removeItem('sa_user');
+          }
+        })
+        .withFailureHandler(function () {
+          sessionStorage.removeItem('sa_token');
+          sessionStorage.removeItem('sa_user');
+        })
+        .validateSessionFromClient(savedToken);
+    }
+
+    document.querySelectorAll('.nav-link-custom').forEach(function (link) {
+      link.addEventListener('click', function () { switchView(link.dataset.view); });
+    });
+  });
+
+  /* ================= LOGIN ================= */
+  function doLogin() {
+    var username = document.getElementById('username').value.trim();
+    var password = document.getElementById('password').value;
+    var errBox = document.getElementById('loginError');
+    errBox.classList.add('d-none');
+
+    if (!username || !password) {
+      errBox.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+      errBox.classList.remove('d-none');
+      return;
+    }
+
+    document.getElementById('loginBtn').disabled = true;
+    document.getElementById('loginBtn').textContent = 'กำลังเข้าสู่ระบบ...';
+
+    google.script.run
+      .withSuccessHandler(onLoginSuccess)
+      .withFailureHandler(onLoginFail)
+      .handleLoginFromClient(username, password);
+  }
+
+  function onLoginSuccess(result) {
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginBtn').textContent = 'เข้าสู่ระบบ';
+
+    if (!result.success) {
+      var errBox = document.getElementById('loginError');
+      errBox.textContent = result.message || 'เข้าสู่ระบบไม่สำเร็จ';
+      errBox.classList.remove('d-none');
+      return;
+    }
+
+    currentUser = result.user;
+    sessionStorage.setItem('sa_token', result.token);
+    sessionStorage.setItem('sa_user', JSON.stringify(result.user));
+
+    showAppShell_();
+
+    Swal.fire({
+      icon: 'success',
+      title: 'เข้าสู่ระบบสำเร็จ',
+      text: 'ยินดีต้อนรับ ' + currentUser.fullName,
+      timer: 1600,
+      showConfirmButton: false
+    });
+  }
+
+  function onLoginFail(error) {
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginBtn').textContent = 'เข้าสู่ระบบ';
+    var errBox = document.getElementById('loginError');
+    errBox.textContent = 'เกิดข้อผิดพลาด: ' + error.message;
+    errBox.classList.remove('d-none');
+  }
+
+  /* ================= APP SHELL ================= */
+  function showAppShell_() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+
+    document.getElementById('sbName').textContent = currentUser.fullName;
+    document.getElementById('sbRole').textContent = currentUser.roleLabel;
+    document.getElementById('sbAvatar').textContent = currentUser.fullName.slice(0, 2);
+
+    applyPermissions_();
+  }
+
+  function applyPermissions_() {
+    document.querySelectorAll('.nav-link-custom[data-perm]').forEach(function (link) {
+      var perm = link.dataset.perm;
+      if (perm && currentUser.permissions && !currentUser.permissions[perm]) {
+        link.style.display = 'none';
+      } else {
+        link.style.display = '';
+      }
+    });
+  }
+
+  /* ================= LOGOUT ================= */
+  function doLogout() {
+    Swal.fire({
+      icon: 'question',
+      title: 'ออกจากระบบ?',
+      showCancelButton: true,
+      confirmButtonText: 'ออกจากระบบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#c2483a'
+    }).then(function (r) {
+      if (r.isConfirmed) {
+        sessionStorage.removeItem('sa_token');
+        sessionStorage.removeItem('sa_user');
+        currentUser = null;
+        document.getElementById('appShell').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        document.querySelectorAll('.nav-link-custom[data-perm]').forEach(function (link) {
+          link.style.display = '';
+        });
+      }
+    });
+  }
+
+  /* ================= NAV ================= */
+  function switchView(name) {
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.nav-link-custom').forEach(function (l) {
+      l.classList.toggle('active', l.dataset.view === name);
+    });
+    document.getElementById('sidebar').classList.remove('open');
+
+    // โหลดข้อมูลของแต่ละหน้าเมื่อสลับเข้ามา
+    if (name === 'students') loadStudents();
+  }
+
+  /* ================= STUDENTS MODULE ================= */
+  let studentSearchTimer = null;
+  let currentStudentId = null;
+
+  function getToken() { return sessionStorage.getItem('sa_token'); }
+
+  function debounceSearchStudents() {
+    clearTimeout(studentSearchTimer);
+    studentSearchTimer = setTimeout(loadStudents, 400);
+  }
+
+  function loadStudents() {
+    const filters = {
+      q: document.getElementById('studentSearch').value,
+      grade: document.getElementById('filterGrade').value,
+      room: document.getElementById('filterRoom').value
+    };
+    document.getElementById('studentTableBody').innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(renderStudentTable)
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', text: err.message }))
+      .apiGetStudents(getToken(), filters);
+  }
+
+  function renderStudentTable(res) {
+    if (!res.success) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: res.message });
+      document.getElementById('studentTableBody').innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+      return;
+    }
+    document.getElementById('studentCount').textContent = res.total + ' รายการ';
+    const rows = res.students.map(st => `
+    <tr class="student-row" onclick="openProfile('${st.StudentID}')">
+      <td><div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div></td>
+      <td>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}<div class="text-secondary" style="font-size:.72rem">${st.StudentID}</div></td>
+      <td>${st.StudentID}</td>
+      <td>${st.Grade || '-'} / ${st.Room || '-'} เลขที่ ${st.No || '-'}</td>
+      <td><span class="fw-bold" style="color:${st.CurrentScore < 70 ? 'var(--bad)' : 'var(--navy-900)'}">${st.CurrentScore}</span></td>
+      <td>${st.LineLinked ? '<span class="badge-soft badge-good">เชื่อมแล้ว</span>' : '<span class="badge-soft badge-warn">ยังไม่เชื่อม</span>'}</td>
+      <td class="text-end"><i class="bi bi-chevron-right text-secondary"></i></td>
+    </tr>`).join('');
+    document.getElementById('studentTableBody').innerHTML = rows || '<tr><td colspan="7" class="text-center text-secondary py-4">ไม่พบข้อมูลนักเรียน</td></tr>';
+  }
+
+  function updateEducationPhaseLabel() {
+    const grade = document.getElementById('sm_grade').value;
+    const phase = ['ม.1', 'ม.2', 'ม.3'].includes(grade) ? 'ม.ต้น' : 'ม.ปลาย';
+    document.getElementById('sm_phaseLabel').value = phase;
+  }
+
+  function openAddStudentModal() {
+    document.getElementById('studentModalTitle').textContent = 'เพิ่มนักเรียนใหม่';
+    document.getElementById('sm_studentId').value = '';
+
+    // รีเซ็ต text/number/date inputs
+    ['sm_firstName', 'sm_lastName', 'sm_room', 'sm_no', 'sm_citizenId', 'sm_dob', 'sm_bloodType', 'sm_weight', 'sm_height',
+      'sm_addressNo', 'sm_addressMoo', 'sm_addressRoad', 'sm_addressTambon', 'sm_addressAmphoe', 'sm_addressProvince',
+      'sm_parentName', 'sm_parentPhone', 'sm_fatherName', 'sm_fatherJob', 'sm_motherName', 'sm_motherJob'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+
+    // รีเซ็ต dropdown กลับค่าเริ่มต้น
+    document.getElementById('sm_prefix').value = '';
+    document.getElementById('sm_gender').value = '';
+    document.getElementById('sm_grade').value = 'ม.1';
+    document.getElementById('sm_parentRelation').value = 'บิดา';
+    document.getElementById('sm_nationality').value = 'ไทย';
+    document.getElementById('sm_religion').value = 'พุทธ';
+    document.getElementById('sm_ethnicity').value = 'ไทย';
+
+    updateEducationPhaseLabel();
+    new bootstrap.Modal(document.getElementById('studentModal')).show();
+  }
+
+  function saveStudent() {
+    const payload = {
+      prefix: document.getElementById('sm_prefix').value,
+      firstName: document.getElementById('sm_firstName').value.trim(),
+      lastName: document.getElementById('sm_lastName').value.trim(),
+      gender: document.getElementById('sm_gender').value,
+      grade: document.getElementById('sm_grade').value,
+      room: document.getElementById('sm_room').value.trim(),
+      no: document.getElementById('sm_no').value,
+      citizenId: document.getElementById('sm_citizenId').value.trim(),
+      dob: document.getElementById('sm_dob').value,
+      bloodType: document.getElementById('sm_bloodType').value,
+      weight: document.getElementById('sm_weight').value,
+      height: document.getElementById('sm_height').value,
+      nationality: document.getElementById('sm_nationality').value,
+      religion: document.getElementById('sm_religion').value,
+      ethnicity: document.getElementById('sm_ethnicity').value,
+      addressNo: document.getElementById('sm_addressNo').value,
+      addressMoo: document.getElementById('sm_addressMoo').value,
+      addressRoad: document.getElementById('sm_addressRoad').value,
+      addressTambon: document.getElementById('sm_addressTambon').value,
+      addressAmphoe: document.getElementById('sm_addressAmphoe').value,
+      addressProvince: document.getElementById('sm_addressProvince').value,
+      parentName: document.getElementById('sm_parentName').value.trim(),
+      parentRelation: document.getElementById('sm_parentRelation').value,
+      parentPhone: document.getElementById('sm_parentPhone').value.trim(),
+      fatherName: document.getElementById('sm_fatherName').value,
+      fatherJob: document.getElementById('sm_fatherJob').value,
+      motherName: document.getElementById('sm_motherName').value,
+      motherJob: document.getElementById('sm_motherJob').value
+    };
+
+    // ตรวจสอบฟิลด์บังคับให้ตรงกับที่ทำเครื่องหมาย * ไว้ใน Index.html
+    const requiredFields = [
+      { key: 'prefix', label: 'คำนำหน้า' },
+      { key: 'firstName', label: 'ชื่อ' },
+      { key: 'lastName', label: 'นามสกุล' },
+      { key: 'gender', label: 'เพศ' },
+      { key: 'grade', label: 'ระดับชั้น' },
+      { key: 'room', label: 'ห้อง' },
+      { key: 'no', label: 'เลขที่' },
+      { key: 'citizenId', label: 'เลขประจำตัวประชาชน' },
+      { key: 'dob', label: 'วันเดือนปีเกิด' },
+      { key: 'parentName', label: 'ชื่อ-นามสกุลผู้ปกครอง' },
+      { key: 'parentPhone', label: 'เบอร์โทรศัพท์ผู้ปกครอง' }
+    ];
+    const missing = requiredFields.filter(f => !payload[f.key] || String(payload[f.key]).trim() === '');
+    if (missing.length > 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณากรอกข้อมูลให้ครบ',
+        html: 'ยังไม่ได้กรอก: <b>' + missing.map(f => f.label).join(', ') + '</b>'
+      });
+      return;
+    }
+    if (payload.citizenId.length !== 13 || !/^\d+$/.test(payload.citizenId)) {
+      Swal.fire({ icon: 'warning', title: 'เลขประจำตัวประชาชนไม่ถูกต้อง', text: 'ต้องเป็นตัวเลข 13 หลัก' });
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
+          Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+          loadStudents();
+        } else {
+          Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+        }
+      })
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+      .apiAddStudent(getToken(), payload);
+  }
+
+  /* ================= STUDENT PROFILE ================= */
+  function openProfile(studentId) {
+    currentStudentId = studentId;
+    document.getElementById('profileContent').innerHTML = '<div class="text-center text-secondary py-5">กำลังโหลดข้อมูล...</div>';
+    switchView('profile');
+
+    google.script.run
+      .withSuccessHandler(renderProfile)
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', text: err.message }))
+      .apiGetStudentDetail(getToken(), studentId);
+  }
+
+  function renderProfile(res) {
+    if (!res.success) {
+      document.getElementById('profileContent').innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+      return;
+    }
+    const st = res.student;
+    const parent = res.parent || {};
+    const timeline = res.timeline || [];
+
+    const eventIcon = { create: 'bi-plus-circle', add: 'bi-plus', deduct: 'bi-dash', invite: 'bi-envelope', leave: 'bi-door-open', line: 'bi-line' };
+    const eventColor = { create: 'var(--navy-800)', add: 'var(--good)', deduct: 'var(--bad)', invite: 'var(--warn)', leave: 'var(--navy-800)', line: '#06C755' };
+
+    document.getElementById('profileContent').innerHTML = `
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card-panel text-center">
+        <div class="avatar-lg mx-auto mb-3">${(st.FirstName || '-')[0]}${(st.LastName || '-')[0]}</div>
+        <h4 class="mb-0">${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</h4>
+        <div class="text-secondary small mb-3">${st.StudentID} · ${st.Grade}/${st.Room} เลขที่ ${st.No}</div>
+        <div class="score-pill mb-0" style="color:${st.CurrentScore < 70 ? 'var(--bad)' : 'var(--navy-900)'}">${st.CurrentScore}</div>
+        <div class="text-secondary small mb-3">คะแนนความประพฤติคงเหลือ (${st.EducationPhase})</div>
+        <div class="text-start small">
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เพศ</span><span>${st.Gender || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">วันเกิด</span><span>${st.DOB || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เลขบัตร ปชช.</span><span>${st.CitizenID || '-'}</span></div>
+          <div class="d-flex justify-content-between py-1"><span class="text-secondary">สถานะ LINE</span><span>${st.LineLinked ? 'เชื่อมแล้ว ✅' : 'ยังไม่เชื่อม'}</span></div>
+        </div>
+      </div>
+      <div class="card-panel mt-3">
+        <div class="section-title"><span class="bar"></span> ข้อมูลผู้ปกครอง</div>
+        <div class="small">
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">ผู้ปกครอง</span><span>${parent.ParentName || '-'} (${parent.ParentRelation || '-'})</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">โทรศัพท์</span><span>${parent.ParentPhone || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">บิดา</span><span>${parent.FatherName || '-'} · ${parent.FatherJob || '-'}</span></div>
+          <div class="d-flex justify-content-between py-1"><span class="text-secondary">มารดา</span><span>${parent.MotherName || '-'} · ${parent.MotherJob || '-'}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="card-panel">
+        <div class="section-title"><span class="bar"></span> Student Timeline</div>
+        <div class="timeline">
+          ${timeline.length ? timeline.map(ev => `
+            <div class="tl-item">
+              <div class="tl-dot" style="background:${eventColor[ev.EventType] || 'var(--navy-800)'}"><i class="bi ${eventIcon[ev.EventType] || 'bi-dot'}"></i></div>
+              <div class="tl-time">${new Date(ev.Timestamp).toLocaleString('th-TH')}</div>
+              <div class="tl-title">${ev.Title}</div>
+              <div class="tl-desc">${ev.Description || ''}</div>
+            </div>`).join('') : '<div class="text-secondary small">ยังไม่มีประวัติ</div>'}
+        </div>
+      </div>
+    </div>
+  </div>`;
+  }
+</script>

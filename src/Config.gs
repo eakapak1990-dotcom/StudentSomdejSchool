@@ -3,11 +3,12 @@
 // ============================================================
 
 const CONFIG = {
+  // ⚠️ Spreadsheet ID ของ Google Sheets ที่ใช้เป็น Database
   SPREADSHEET_ID: '1X_lQTXUF8yLiCV-nkye7mfAmFyGjAdMuVvXk0jICAQA',
   SCRIPT_ID: '1XaxgmZ6vqLEGP_CIR_KI9H6cMzuOkZjuXYetmSQ816cWRU_fxV1YlMh-',
   WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbydTMIeXgYK-sd_FT8h4BsEinZeFfW-f71Dh6kRggBRIvfT1sTPMy6FTyt-XMKgaqxVMA/exec',
 
-  APP_NAME: 'ระบบงานกิจการนักศึกษา',
+  APP_NAME: 'ระบบบริหารงานกลุ่มบริหารกิจการนักเรียน',
   VERSION: '1.0.0',
 
   // ============================================================
@@ -27,57 +28,47 @@ const CONFIG = {
   },
 
   // ============================================================
-  // ระบบสิทธิ์ (Roles)
+  // ระบบสิทธิ์ (Roles) — ตามสเปกที่ล็อกไว้ 5 roles
   // ============================================================
   ROLES: {
-    ADMIN:   'admin',
-    STAFF:   'staff',
-    STUDENT: 'student',
+    ADMIN:      'admin',
+    DEPUTY:     'deputy',
+    ADVISOR:    'advisor',
+    DISCIPLINE: 'discipline',
+    PATROL:     'patrol',
   },
 
   ROLE_LABELS: {
-    admin:   'ผู้ดูแลระบบ',
-    staff:   'เจ้าหน้าที่',
-    student: 'นักศึกษา',
+    admin:      'ผู้ดูแลระบบ',
+    deputy:     'รองผู้อำนวยการ/ผู้บริหาร',
+    advisor:    'ครูที่ปรึกษา',
+    discipline: 'ครูฝ่ายปกครอง',
+    patrol:     'คณะกรรมการสารวัตรนักเรียน',
   },
 
+  // ตาราง permission ตามที่ล็อกไว้:
+  // score / approveLeave / editDelete ทุก role ยกเว้น patrol (approveLeave, editDelete = false)
+  // manageSystem เฉพาะ admin เท่านั้น
   PERMISSIONS: {
-    admin: {
-      manageUsers:      true,
-      manageStudents:   true,
-      manageScores:     true,
-      manageLeave:      true,
-      manageLetter:     true,
-      viewReports:      true,
-      viewAuditLog:     true,
-      manageConfig:     true,
-    },
-    staff: {
-      manageUsers:      false,
-      manageStudents:   true,
-      manageScores:     true,
-      manageLeave:      true,
-      manageLetter:     true,
-      viewReports:      true,
-      viewAuditLog:     false,
-      manageConfig:     false,
-    },
-    student: {
-      manageUsers:      false,
-      manageStudents:   false,
-      manageScores:     false,
-      manageLeave:      false,
-      manageLetter:     false,
-      viewReports:      false,
-      viewAuditLog:     false,
-      manageConfig:     false,
-    },
+    admin:      { score: true,  approveLeave: true,  editDelete: true,  manageSystem: true  },
+    deputy:     { score: true,  approveLeave: true,  editDelete: true,  manageSystem: false },
+    advisor:    { score: true,  approveLeave: true,  editDelete: true,  manageSystem: false },
+    discipline: { score: true,  approveLeave: true,  editDelete: true,  manageSystem: false },
+    patrol:     { score: true,  approveLeave: false, editDelete: false, manageSystem: false },
+  },
+
+  // ============================================================
+  // คะแนนความประพฤติ
+  // ============================================================
+  SCORE: {
+    INITIAL_SCORE: 100,
+    ALERT_INTERVAL: 20,
   },
 
   // ============================================================
   // Session
   // ============================================================
-  SESSION_DURATION_HOURS: 6,
+  SESSION_DURATION_HOURS: 8,
 };
 
 // ============================================================

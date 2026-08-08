@@ -1,6 +1,18 @@
 <script>
   let currentUser = null;
 
+  /* ================= THAI DATE UTILITY (พ.ศ. จริง) ================= */
+  function toThaiDate(dateInput, withTime) {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '-';
+    let text = d.toLocaleDateString('th-TH-u-ca-buddhist', { year: 'numeric', month: 'long', day: 'numeric' });
+    if (withTime) {
+      const time = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      text += ' เวลา ' + time + ' น.';
+    }
+    return text;
+  }
+
   /* ================= SESSION RESTORE ================= */
   document.addEventListener('DOMContentLoaded', function () {
     const savedUser = sessionStorage.getItem('sa_user');
@@ -95,6 +107,7 @@
     document.getElementById('sbAvatar').textContent = currentUser.fullName.slice(0, 2);
 
     applyPermissions_();
+    loadDashboard();
   }
 
   function applyPermissions_() {
@@ -142,8 +155,8 @@
     });
     document.getElementById('sidebar').classList.remove('open');
 
-    // โหลดข้อมูลของแต่ละหน้าเมื่อสลับเข้ามา
     if (name === 'students') loadStudents();
+    if (name === 'dashboard') loadDashboard();
   }
 
   /* ================= STUDENTS MODULE ================= */
@@ -178,16 +191,27 @@
       return;
     }
     document.getElementById('studentCount').textContent = res.total + ' รายการ';
-    const rows = res.students.map(st => `
-    <tr class="student-row" onclick="openProfile('${st.StudentID}')">
-      <td><div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div></td>
-      <td>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}<div class="text-secondary" style="font-size:.72rem">${st.StudentID}</div></td>
-      <td>${st.StudentID}</td>
-      <td>${st.Grade || '-'} / ${st.Room || '-'} เลขที่ ${st.No || '-'}</td>
-      <td><span class="fw-bold" style="color:${st.CurrentScore < 70 ? 'var(--bad)' : 'var(--navy-900)'}">${st.CurrentScore}</span></td>
-      <td>${st.LineLinked ? '<span class="badge-soft badge-good">เชื่อมแล้ว</span>' : '<span class="badge-soft badge-warn">ยังไม่เชื่อม</span>'}</td>
-      <td class="text-end"><i class="bi bi-chevron-right text-secondary"></i></td>
-    </tr>`).join('');
+    const canManage = currentUser && currentUser.permissions && currentUser.permissions.editDelete;
+
+    const rows = res.students.map(st => {
+      const fullName = (st.Prefix || '') + (st.FirstName || '') + ' ' + (st.LastName || '');
+      const actionBtns = `
+        <button class="btn btn-outline-secondary" title="ดูรายละเอียด" onclick="event.stopPropagation(); openProfile('${st.StudentID}')"><i class="bi bi-eye"></i></button>
+        ${canManage ? `
+        <button class="btn btn-outline-primary" title="แก้ไขข้อมูล" onclick="event.stopPropagation(); openEditStudentModal('${st.StudentID}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-outline-danger" title="ลบนักเรียน" onclick="event.stopPropagation(); deleteStudent('${st.StudentID}')"><i class="bi bi-trash"></i></button>` : ''}
+      `;
+      return `
+      <tr class="student-row" onclick="openProfile('${st.StudentID}')">
+        <td><div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div></td>
+        <td>${fullName}<div class="text-secondary" style="font-size:.72rem">${st.StudentID}</div></td>
+        <td>${st.StudentID}</td>
+        <td>${st.Grade || '-'} / ${st.Room || '-'} เลขที่ ${st.No || '-'}</td>
+        <td><span class="fw-bold" style="color:${st.CurrentScore < 70 ? 'var(--bad)' : 'var(--navy-900)'}">${st.CurrentScore}</span></td>
+        <td>${st.LineLinked ? '<span class="badge-soft badge-good">เชื่อมแล้ว</span>' : '<span class="badge-soft badge-warn">ยังไม่เชื่อม</span>'}</td>
+        <td class="text-end"><div class="action-btn-group">${actionBtns}</div></td>
+      </tr>`;
+    }).join('');
     document.getElementById('studentTableBody').innerHTML = rows || '<tr><td colspan="7" class="text-center text-secondary py-4">ไม่พบข้อมูลนักเรียน</td></tr>';
   }
 
@@ -201,14 +225,12 @@
     document.getElementById('studentModalTitle').textContent = 'เพิ่มนักเรียนใหม่';
     document.getElementById('sm_studentId').value = '';
 
-    // รีเซ็ต text/number/date inputs
     ['sm_firstName', 'sm_lastName', 'sm_room', 'sm_no', 'sm_citizenId', 'sm_dob', 'sm_bloodType', 'sm_weight', 'sm_height',
       'sm_addressNo', 'sm_addressMoo', 'sm_addressRoad', 'sm_addressTambon', 'sm_addressAmphoe', 'sm_addressProvince',
-      'sm_parentName', 'sm_parentPhone', 'sm_fatherName', 'sm_fatherJob', 'sm_motherName', 'sm_motherJob'].forEach(id => {
+      'sm_parentName', 'sm_parentPhone', 'sm_parentJob', 'sm_fatherName', 'sm_fatherJob', 'sm_motherName', 'sm_motherJob'].forEach(id => {
         document.getElementById(id).value = '';
       });
 
-    // รีเซ็ต dropdown กลับค่าเริ่มต้น
     document.getElementById('sm_prefix').value = '';
     document.getElementById('sm_gender').value = '';
     document.getElementById('sm_grade').value = 'ม.1';
@@ -246,6 +268,7 @@
       addressProvince: document.getElementById('sm_addressProvince').value,
       parentName: document.getElementById('sm_parentName').value.trim(),
       parentRelation: document.getElementById('sm_parentRelation').value,
+      parentJob: document.getElementById('sm_parentJob').value.trim(),
       parentPhone: document.getElementById('sm_parentPhone').value.trim(),
       fatherName: document.getElementById('sm_fatherName').value,
       fatherJob: document.getElementById('sm_fatherJob').value,
@@ -253,7 +276,6 @@
       motherJob: document.getElementById('sm_motherJob').value
     };
 
-    // ตรวจสอบฟิลด์บังคับให้ตรงกับที่ทำเครื่องหมาย * ไว้ใน Index.html
     const requiredFields = [
       { key: 'prefix', label: 'คำนำหน้า' },
       { key: 'firstName', label: 'ชื่อ' },
@@ -281,18 +303,35 @@
       return;
     }
 
-    google.script.run
-      .withSuccessHandler(res => {
-        if (res.success) {
-          bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
-          Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-          loadStudents();
-        } else {
-          Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
-        }
-      })
-      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
-      .apiAddStudent(getToken(), payload);
+    const editId = document.getElementById('sm_studentId').value;
+
+    if (editId) {
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
+            Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+            openProfile(editId);
+          } else {
+            Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+          }
+        })
+        .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+        .apiUpdateStudent(getToken(), editId, payload);
+    } else {
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
+            Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+            loadStudents();
+          } else {
+            Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+          }
+        })
+        .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+        .apiAddStudent(getToken(), payload);
+    }
   }
 
   /* ================= STUDENT PROFILE ================= */
@@ -316,6 +355,17 @@
     const parent = res.parent || {};
     const timeline = res.timeline || [];
 
+    const actionsEl = document.getElementById('profileActions');
+    if (currentUser && currentUser.permissions && currentUser.permissions.editDelete) {
+      actionsEl.innerHTML = `
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-navy" onclick="openEditStudentModal('${st.StudentID}')"><i class="bi bi-pencil-square me-1"></i> แก้ไข</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${st.StudentID}')"><i class="bi bi-trash3 me-1"></i> ลบ</button>
+        </div>`;
+    } else {
+      actionsEl.innerHTML = '';
+    }
+
     const eventIcon = { create: 'bi-plus-circle', add: 'bi-plus', deduct: 'bi-dash', invite: 'bi-envelope', leave: 'bi-door-open', line: 'bi-line' };
     const eventColor = { create: 'var(--navy-800)', add: 'var(--good)', deduct: 'var(--bad)', invite: 'var(--warn)', leave: 'var(--navy-800)', line: '#06C755' };
 
@@ -330,15 +380,31 @@
         <div class="text-secondary small mb-3">คะแนนความประพฤติคงเหลือ (${st.EducationPhase})</div>
         <div class="text-start small">
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เพศ</span><span>${st.Gender || '-'}</span></div>
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">วันเกิด</span><span>${st.DOB || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">วันเกิด</span><span>${st.DOB ? toThaiDate(st.DOB) : '-'}</span></div>
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เลขบัตร ปชช.</span><span>${st.CitizenID || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">หมู่เลือด</span><span>${st.BloodType || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">น้ำหนัก / ส่วนสูง</span><span>${st.Weight || '-'} กก. / ${st.Height || '-'} ซม.</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">ศาสนา</span><span>${st.Religion || '-'}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เชื้อชาติ / สัญชาติ</span><span>${st.Ethnicity || '-'} / ${st.Nationality || '-'}</span></div>
           <div class="d-flex justify-content-between py-1"><span class="text-secondary">สถานะ LINE</span><span>${st.LineLinked ? 'เชื่อมแล้ว ✅' : 'ยังไม่เชื่อม'}</span></div>
         </div>
       </div>
+
+      <div class="card-panel mt-3">
+        <div class="section-title"><span class="bar"></span> ที่อยู่</div>
+        <div class="small">
+          ${(st.Address_No || st.Address_Moo || st.Address_Road || st.Address_Tambon || st.Address_Amphoe || st.Address_Province)
+            ? `<div class="py-1">${[st.Address_No ? 'บ้านเลขที่ ' + st.Address_No : '', st.Address_Moo ? 'หมู่ ' + st.Address_Moo : '', st.Address_Road ? 'ถ. ' + st.Address_Road : ''].filter(Boolean).join(' ')}</div>
+              <div class="py-1">${['ต. ' + (st.Address_Tambon || '-'), 'อ. ' + (st.Address_Amphoe || '-'), 'จ. ' + (st.Address_Province || '-')].join(' ')}</div>`
+            : '<div class="text-secondary">ไม่มีข้อมูลที่อยู่</div>'}
+        </div>
+      </div>
+
       <div class="card-panel mt-3">
         <div class="section-title"><span class="bar"></span> ข้อมูลผู้ปกครอง</div>
         <div class="small">
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">ผู้ปกครอง</span><span>${parent.ParentName || '-'} (${parent.ParentRelation || '-'})</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">อาชีพ</span><span>${parent.ParentJob || '-'}</span></div>
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">โทรศัพท์</span><span>${parent.ParentPhone || '-'}</span></div>
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">บิดา</span><span>${parent.FatherName || '-'} · ${parent.FatherJob || '-'}</span></div>
           <div class="d-flex justify-content-between py-1"><span class="text-secondary">มารดา</span><span>${parent.MotherName || '-'} · ${parent.MotherJob || '-'}</span></div>
@@ -347,12 +413,12 @@
     </div>
     <div class="col-lg-8">
       <div class="card-panel">
-        <div class="section-title"><span class="bar"></span> Student Timeline</div>
+        <div class="section-title"><span class="bar"></span> ไทม์ไลน์นักเรียน</div>
         <div class="timeline">
           ${timeline.length ? timeline.map(ev => `
             <div class="tl-item">
               <div class="tl-dot" style="background:${eventColor[ev.EventType] || 'var(--navy-800)'}"><i class="bi ${eventIcon[ev.EventType] || 'bi-dot'}"></i></div>
-              <div class="tl-time">${new Date(ev.Timestamp).toLocaleString('th-TH')}</div>
+              <div class="tl-time">${toThaiDate(ev.Timestamp, true)}</div>
               <div class="tl-title">${ev.Title}</div>
               <div class="tl-desc">${ev.Description || ''}</div>
             </div>`).join('') : '<div class="text-secondary small">ยังไม่มีประวัติ</div>'}
@@ -360,5 +426,161 @@
       </div>
     </div>
   </div>`;
+  }
+
+  /* ================= EDIT STUDENT ================= */
+  function openEditStudentModal(studentId) {
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        Swal.close();
+        if (!res.success) {
+          Swal.fire({ icon: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', text: res.message });
+          return;
+        }
+        const st = res.student;
+        const p = res.parent || {};
+
+        document.getElementById('studentModalTitle').textContent = 'แก้ไขข้อมูลนักเรียน';
+        document.getElementById('sm_studentId').value = studentId;
+
+        document.getElementById('sm_prefix').value = st.Prefix || '';
+        document.getElementById('sm_firstName').value = st.FirstName || '';
+        document.getElementById('sm_lastName').value = st.LastName || '';
+        document.getElementById('sm_gender').value = st.Gender || '';
+        document.getElementById('sm_grade').value = st.Grade || 'ม.1';
+        document.getElementById('sm_room').value = st.Room || '';
+        document.getElementById('sm_no').value = st.No || '';
+        document.getElementById('sm_citizenId').value = st.CitizenID || '';
+        document.getElementById('sm_dob').value = st.DOB ? st.DOB.split('T')[0] : '';
+        document.getElementById('sm_bloodType').value = st.BloodType || '';
+        document.getElementById('sm_weight').value = st.Weight || '';
+        document.getElementById('sm_height').value = st.Height || '';
+        document.getElementById('sm_nationality').value = st.Nationality || 'ไทย';
+        document.getElementById('sm_religion').value = st.Religion || 'พุทธ';
+        document.getElementById('sm_ethnicity').value = st.Ethnicity || 'ไทย';
+
+        document.getElementById('sm_addressNo').value = st.Address_No || '';
+        document.getElementById('sm_addressMoo').value = st.Address_Moo || '';
+        document.getElementById('sm_addressRoad').value = st.Address_Road || '';
+        document.getElementById('sm_addressTambon').value = st.Address_Tambon || '';
+        document.getElementById('sm_addressAmphoe').value = st.Address_Amphoe || '';
+        document.getElementById('sm_addressProvince').value = st.Address_Province || '';
+
+        document.getElementById('sm_parentName').value = p.ParentName || '';
+        document.getElementById('sm_parentRelation').value = p.ParentRelation || 'บิดา';
+        document.getElementById('sm_parentJob').value = p.ParentJob || '';
+        document.getElementById('sm_parentPhone').value = p.ParentPhone || '';
+        document.getElementById('sm_fatherName').value = p.FatherName || '';
+        document.getElementById('sm_fatherJob').value = p.FatherJob || '';
+        document.getElementById('sm_motherName').value = p.MotherName || '';
+        document.getElementById('sm_motherJob').value = p.MotherJob || '';
+
+        updateEducationPhaseLabel();
+        new bootstrap.Modal(document.getElementById('studentModal')).show();
+      })
+      .withFailureHandler(function (err) {
+        Swal.close();
+        Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message });
+      })
+      .apiGetStudentDetail(getToken(), studentId);
+  }
+
+  /* ================= DELETE STUDENT ================= */
+  function deleteStudent(studentId) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'ยืนยันลบข้อมูล?',
+      html: 'ข้อมูลนักเรียน ผู้ปกครอง และประวัติทั้งหมดของ <b>' + studentId + '</b> จะถูกลบถาวร <br><span class="text-danger small">ไม่สามารถย้อนกลับได้</span>',
+      showCancelButton: true,
+      confirmButtonText: 'ลบถาวร',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#c2483a'
+    }).then(function (r) {
+      if (!r.isConfirmed) return;
+
+      Swal.fire({
+        icon: 'error',
+        title: 'ยืนยันอีกครั้ง',
+        text: 'การลบนี้ไม่สามารถกู้คืนได้ ยืนยันหรือไม่?',
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยันลบถาวร',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#c2483a'
+      }).then(function (r2) {
+        if (!r2.isConfirmed) return;
+        Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              Swal.fire({ icon: 'success', title: 'ลบเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+              switchView('students');
+            } else {
+              Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: res.message });
+            }
+          })
+          .withFailureHandler(function (err) { Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }); })
+          .apiDeleteStudent(getToken(), studentId);
+      });
+    });
+  }
+
+  /* ================= DASHBOARD ================= */
+  let chartGradeDistInstance = null;
+
+  function loadDashboard() {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res.success) {
+          document.getElementById('dashboardTimeline').innerHTML = '<div class="text-secondary small text-center py-3">โหลดข้อมูลไม่สำเร็จ</div>';
+          return;
+        }
+        const s = res.summary;
+        document.getElementById('statTotal').textContent = s.totalStudents.toLocaleString('th-TH');
+        document.getElementById('statRisk').textContent = s.atRisk.toLocaleString('th-TH');
+        document.getElementById('statLine').textContent = s.lineLinked.toLocaleString('th-TH');
+        document.getElementById('statToday').textContent = s.todayEvents.toLocaleString('th-TH');
+
+        const eventIcon = { create: 'bi-plus-circle', add: 'bi-plus', deduct: 'bi-dash', invite: 'bi-envelope', leave: 'bi-door-open', line: 'bi-line' };
+        const eventColor = { create: 'var(--navy-800)', add: 'var(--good)', deduct: 'var(--bad)', invite: 'var(--warn)', leave: 'var(--navy-800)', line: '#06C755' };
+        const events = res.recentTimeline || [];
+
+        if (events.length === 0) {
+          document.getElementById('dashboardTimeline').innerHTML = '<div class="text-secondary small text-center py-3">ยังไม่มีเหตุการณ์</div>';
+        } else {
+          const html = '<div class="timeline">' + events.map(ev => `
+            <div class="tl-item">
+              <div class="tl-dot" style="background:${eventColor[ev.EventType] || 'var(--navy-800)'}"><i class="bi ${eventIcon[ev.EventType] || 'bi-dot'}"></i></div>
+              <div class="tl-time">${toThaiDate(ev.Timestamp, true)}</div>
+              <div class="tl-title">${ev.Title}</div>
+              <div class="tl-desc">${ev.Description || ''}</div>
+            </div>`).join('') + '</div>';
+          document.getElementById('dashboardTimeline').innerHTML = html;
+        }
+
+        // สถิตินักเรียนแยกตามระดับชั้น (ข้อมูลจริงจาก Sheet)
+        const gd = res.gradeDistribution;
+        const ctx = document.getElementById('chartGradeDistribution');
+        if (chartGradeDistInstance) chartGradeDistInstance.destroy();
+        chartGradeDistInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: gd.labels,
+            datasets: [{
+              data: gd.counts,
+              backgroundColor: ['#152A52', '#284a8a', '#c9a227', '#d9b94a', '#1f8a5b', '#c2483a']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom', labels: { font: { family: 'Sarabun' }, boxWidth: 12 } } }
+          }
+        });
+      })
+      .withFailureHandler(function () {
+        document.getElementById('dashboardTimeline').innerHTML = '<div class="text-secondary small text-center py-3">โหลดข้อมูลไม่สำเร็จ</div>';
+      })
+      .apiGetDashboardSummary(getToken());
   }
 </script>

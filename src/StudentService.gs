@@ -105,25 +105,87 @@ function api_updateStudent_(token, studentId, payload) {
       return { success: false, message: 'คุณไม่มีสิทธิ์แก้ไขข้อมูลนี้' };
     }
 
+    // --- อัปเดต Students sheet ---
     const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
     const colId = headers.indexOf('StudentID');
+    let found = false;
+
+    // Map payload keys → Students column names
+    const studentFieldMap = {
+      prefix: 'Prefix', firstName: 'FirstName', lastName: 'LastName', gender: 'Gender',
+      grade: 'Grade', room: 'Room', no: 'No', citizenId: 'CitizenID', dob: 'DOB',
+      bloodType: 'BloodType', weight: 'Weight', height: 'Height',
+      nationality: 'Nationality', religion: 'Religion', ethnicity: 'Ethnicity',
+      addressNo: 'Address_No', addressMoo: 'Address_Moo', addressRoad: 'Address_Road',
+      addressTambon: 'Address_Tambon', addressAmphoe: 'Address_Amphoe', addressProvince: 'Address_Province'
+    };
 
     for (let i = 1; i < data.length; i++) {
       if (data[i][colId] === studentId) {
         const before = JSON.stringify(rowToObject_(headers, data[i]));
-        Object.keys(payload).forEach(key => {
-          const col = headers.indexOf(key);
-          if (col !== -1) sheet.getRange(i + 1, col + 1).setValue(payload[key]);
+        Object.keys(studentFieldMap).forEach(key => {
+          if (payload[key] !== undefined) {
+            const col = headers.indexOf(studentFieldMap[key]);
+            if (col !== -1) sheet.getRange(i + 1, col + 1).setValue(payload[key]);
+          }
         });
+        // อัปเดต EducationPhase ตามระดับชั้นใหม่
+        if (payload.grade) {
+          const phaseCol = headers.indexOf('EducationPhase');
+          if (phaseCol !== -1) sheet.getRange(i + 1, phaseCol + 1).setValue(getEducationPhase_(payload.grade));
+        }
         sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+        found = true;
 
         logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.STUDENTS, studentId, before, JSON.stringify(payload));
-        return { success: true };
+        break;
       }
     }
-    return { success: false, message: 'ไม่พบนักเรียน' };
+    if (!found) return { success: false, message: 'ไม่พบนักเรียน' };
+
+    // --- อัปเดต Parents sheet ---
+    const parentFieldMap = {
+      parentName: 'ParentName', parentRelation: 'ParentRelation', parentJob: 'ParentJob',
+      parentPhone: 'ParentPhone', fatherName: 'FatherName', fatherJob: 'FatherJob',
+      motherName: 'MotherName', motherJob: 'MotherJob'
+    };
+    const hasParentData = Object.keys(parentFieldMap).some(k => payload[k] !== undefined);
+
+    if (hasParentData) {
+      const pSheet = getSheet(CONFIG.SHEET_NAMES.PARENTS);
+      const pData = pSheet.getDataRange().getValues();
+      const pHeaders = pData[0];
+      const pColId = pHeaders.indexOf('StudentID');
+      let parentFound = false;
+
+      for (let i = 1; i < pData.length; i++) {
+        if (pData[i][pColId] === studentId) {
+          Object.keys(parentFieldMap).forEach(key => {
+            if (payload[key] !== undefined) {
+              const col = pHeaders.indexOf(parentFieldMap[key]);
+              if (col !== -1) pSheet.getRange(i + 1, col + 1).setValue(payload[key]);
+            }
+          });
+          pSheet.getRange(i + 1, pHeaders.indexOf('UpdatedAt') + 1).setValue(new Date());
+          parentFound = true;
+          break;
+        }
+      }
+
+      // ถ้าไม่มีแถวผู้ปกครอง → สร้างใหม่
+      if (!parentFound) {
+        pSheet.appendRow([
+          studentId,
+          payload.parentName || '', payload.parentRelation || '', payload.parentJob || '', payload.parentPhone || '',
+          payload.fatherName || '', payload.fatherJob || '', payload.motherName || '', payload.motherJob || '',
+          new Date()
+        ]);
+      }
+    }
+
+    return { success: true };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }
@@ -145,11 +207,73 @@ function api_deleteStudent_(token, studentId) {
       if (data[i][colId] === studentId) {
         const before = JSON.stringify(rowToObject_(data[0], data[i]));
         sheet.deleteRow(i + 1);
+
+        // ลบ orphaned records ที่เกี่ยวข้อง
+        deleteRelatedRows_(CONFIG.SHEET_NAMES.PARENTS, studentId);
+        deleteRelatedRows_(CONFIG.SHEET_NAMES.TIMELINE, studentId);
+        deleteRelatedRows_(CONFIG.SHEET_NAMES.LINE_BINDINGS, studentId);
+
         logAudit_(session, 'DELETE', CONFIG.SHEET_NAMES.STUDENTS, studentId, before, '');
         return { success: true };
       }
     }
     return { success: false, message: 'ไม่พบนักเรียน' };
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+  }
+}
+
+/**
+ * ดึงข้อมูลสรุปสำหรับ Dashboard (ข้อมูลจริงจาก Sheet)
+ */
+function api_getDashboardSummary_(token) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+
+    const studSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
+    const studData = studSheet.getDataRange().getValues();
+    const studHeaders = studData[0];
+    const students = studData.slice(1);
+
+    const totalStudents = students.length;
+
+    // นักเรียนคะแนน < 70 (กลุ่มเสี่ยง)
+    const colScore = studHeaders.indexOf('CurrentScore');
+    const atRisk = students.filter(r => Number(r[colScore]) < 70).length;
+
+    // นักเรียนที่เชื่อม LINE แล้ว
+    const colLine = studHeaders.indexOf('LineLinked');
+    const lineLinked = students.filter(r => r[colLine] === true).length;
+
+    // เหตุการณ์วันนี้จาก Timeline
+    const tlSheet = getSheet(CONFIG.SHEET_NAMES.TIMELINE);
+    const tlData = tlSheet.getDataRange().getValues();
+    const tlHeaders = tlData[0];
+    const colTs = tlHeaders.indexOf('Timestamp');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEvents = tlData.slice(1).filter(r => {
+      const ts = r[colTs];
+      if (ts instanceof Date) {
+        const d = new Date(ts);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime() === today.getTime();
+      }
+      return false;
+    }).length;
+
+    // 5 เหตุการณ์ล่าสุดจาก Timeline (สำหรับแสดงในหน้า Dashboard)
+    const recentEvents = tlData.slice(1)
+      .map(row => rowToObject_(tlHeaders, row))
+      .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))
+      .slice(0, 5);
+
+    return {
+      success: true,
+      summary: { totalStudents, atRisk, lineLinked, todayEvents },
+      recentTimeline: recentEvents
+    };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }
@@ -248,6 +372,29 @@ function getStudentTimeline_(studentId) {
   return events;
 }
 
+/**
+ * ลบแถวทั้งหมดที่เกี่ยวข้องกับ StudentID ออกจาก Sheet ที่ระบุ
+ * ลบจากล่างขึ้นบน เพื่อไม่ให้ row index เลื่อน
+ */
+function deleteRelatedRows_(sheetName, studentId) {
+  try {
+    const sheet = getSheet(sheetName);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('StudentID');
+    if (colId === -1) return;
+
+    // วน reverse เพื่อลบจากล่างขึ้นบน
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i][colId] === studentId) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+  } catch (e) {
+    // ถ้า sheet ไม่มีก็ข้ามไป
+  }
+}
+
 // ============================================
 // Public Functions (สำหรับ google.script.run)
 // ============================================
@@ -270,4 +417,8 @@ function apiUpdateStudent(token, studentId, payload) {
 
 function apiDeleteStudent(token, studentId) {
   return api_deleteStudent_(token, studentId);
+}
+
+function apiGetDashboardSummary(token) {
+  return api_getDashboardSummary_(token);
 }

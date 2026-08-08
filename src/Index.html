@@ -15,6 +15,7 @@
     rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 
   <?!= include('CSS'); ?>
@@ -113,9 +114,59 @@
             <div class="desc">สรุปสถานการณ์ความประพฤตินักเรียนทั้งโรงเรียน</div>
           </div>
         </div>
-        <div class="alert alert-info small">ℹ️ ระบบเชื่อมต่อกับ Google Sheet เรียบร้อยแล้ว —
-          โมดูลนี้ยังใช้ข้อมูลตัวอย่าง (Mock Data) รอเชื่อมต่อ Sheet จริงในเฟสถัดไป</div>
-        <div id="dashboardMock"></div>
+        <div class="row g-3 mb-4" id="dashboardStats">
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#e8ecf7;color:var(--navy-800)"><i class="bi bi-people-fill"></i></div>
+                <div class="lbl">นักเรียนทั้งหมด</div>
+              </div>
+              <div class="val" id="statTotal">–</div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#fbe9e7;color:var(--bad)"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                <div class="lbl">กลุ่มเสี่ยง (&lt;70 คะแนน)</div>
+              </div>
+              <div class="val" id="statRisk" style="color:var(--bad)">–</div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#e5f5ec;color:var(--good)"><i class="bi bi-line"></i></div>
+                <div class="lbl">เชื่อม LINE แล้ว</div>
+              </div>
+              <div class="val" id="statLine" style="color:var(--good)">–</div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#fbf1de;color:var(--warn)"><i class="bi bi-calendar-event-fill"></i></div>
+                <div class="lbl">เหตุการณ์วันนี้</div>
+              </div>
+              <div class="val" id="statToday">–</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="card-panel">
+              <div class="section-title"><span class="bar"></span> เหตุการณ์ล่าสุด</div>
+              <div id="dashboardTimeline"><div class="text-center text-secondary py-3">กำลังโหลด...</div></div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="card-panel">
+              <div class="section-title"><span class="bar"></span> สถิตินักเรียนแยกตามระดับชั้น</div>
+              <canvas id="chartGradeDistribution" height="220"></canvas>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="view" id="view-students">
@@ -167,7 +218,7 @@
                   <th>ชั้น/ห้อง</th>
                   <th>คะแนนคงเหลือ</th>
                   <th>สถานะ LINE</th>
-                  <th></th>
+                  <th class="text-end">การดำเนินการ</th>
                 </tr>
               </thead>
               <tbody id="studentTableBody">
@@ -182,8 +233,11 @@
 
       <div class="view" id="view-profile">
         <div class="topbar">
-          <button class="btn btn-sm btn-outline-secondary mb-2" onclick="switchView('students')"><i
-              class="bi bi-arrow-left"></i> กลับไปฐานข้อมูล</button>
+          <div>
+            <button class="btn btn-sm btn-outline-secondary mb-2" onclick="switchView('students')"><i
+                class="bi bi-arrow-left"></i> กลับไปฐานข้อมูล</button>
+          </div>
+          <div id="profileActions"></div>
         </div>
         <div id="profileContent"></div>
       </div>
@@ -329,16 +383,19 @@
                 <option>ผู้ปกครอง</option>
               </select>
             </div>
+            <div class="col-md-4"><label class="form-label small">อาชีพผู้ปกครอง</label><input class="form-control"
+                id="sm_parentJob" placeholder="เช่น รับราชการ, ค้าขาย"></div>
+
             <div class="col-md-4"><label class="form-label small">เบอร์โทรศัพท์ <span class="text-danger">*</span></label><input class="form-control"
                 id="sm_parentPhone" required></div>
 
-            <div class="col-md-3"><label class="form-label small">ชื่อบิดา</label><input class="form-control"
+            <div class="col-md-2"><label class="form-label small">ชื่อบิดา</label><input class="form-control"
                 id="sm_fatherName"></div>
-            <div class="col-md-3"><label class="form-label small">อาชีพบิดา</label><input class="form-control"
+            <div class="col-md-2"><label class="form-label small">อาชีพบิดา</label><input class="form-control"
                 id="sm_fatherJob"></div>
-            <div class="col-md-3"><label class="form-label small">ชื่อมารดา</label><input class="form-control"
+            <div class="col-md-2"><label class="form-label small">ชื่อมารดา</label><input class="form-control"
                 id="sm_motherName"></div>
-            <div class="col-md-3"><label class="form-label small">อาชีพมารดา</label><input class="form-control"
+            <div class="col-md-2"><label class="form-label small">อาชีพมารดา</label><input class="form-control"
                 id="sm_motherJob"></div>
           </div>
         </div>

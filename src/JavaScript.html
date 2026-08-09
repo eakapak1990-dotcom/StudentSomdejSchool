@@ -13,18 +13,16 @@
     return text;
   }
   function formatTimeDisplay(t) {
-  if (!t) return '-';
-  // ถ้าเป็น string รูปแบบ HH:mm อยู่แล้ว ส่งกลับตรงๆ
-  if (/^\d{1,2}:\d{2}$/.test(t)) return t;
-  // เผื่อกรณี legacy data ที่ยังเป็น ISO date string
-  const d = new Date(t);
-  if (!isNaN(d.getTime())) {
-    const h = String(d.getUTCHours()).padStart(2, '0');
-    const m = String(d.getUTCMinutes()).padStart(2, '0');
-    return h + ':' + m;
+    if (!t) return '-';
+    if (/^\d{1,2}:\d{2}$/.test(t)) return t;
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) {
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      return h + ':' + m;
+    }
+    return t;
   }
-  return t;
-}
 
   /* ================= SESSION RESTORE ================= */
   document.addEventListener('DOMContentLoaded', function () {
@@ -172,6 +170,8 @@
     if (name === 'dashboard') loadDashboard();
     if (name === 'score') loadScoreHistory();
     if (name === 'leave') loadLeaveRequests();
+    if (name === 'letters') loadLetters();
+    if (name === 'users') loadUsers();
   }
 
   /* ================= STUDENTS MODULE ================= */
@@ -370,7 +370,7 @@
     const parent = res.parent || {};
     const timeline = res.timeline || [];
 
-  const actionsEl = document.getElementById('profileActions');
+    const actionsEl = document.getElementById('profileActions');
     const canScore = currentUser && currentUser.permissions && currentUser.permissions.score;
     const canManage = currentUser && currentUser.permissions && currentUser.permissions.editDelete;
     let actionBtns = '';
@@ -576,7 +576,6 @@
           document.getElementById('dashboardTimeline').innerHTML = html;
         }
 
-        // สถิตินักเรียนแยกตามระดับชั้น (ข้อมูลจริงจาก Sheet)
         const gd = res.gradeDistribution;
         const ctx = document.getElementById('chartGradeDistribution');
         if (chartGradeDistInstance) chartGradeDistInstance.destroy();
@@ -600,329 +599,640 @@
       })
       .apiGetDashboardSummary(getToken());
   }
+
   /* ================= SCORE MODULE ================= */
-const REASONS_GOOD = ['ช่วยงานส่วนรวม', 'เก็บของได้แล้วนำส่งครู', 'เป็นแบบอย่างที่ดีด้านความประพฤติ', 'เข้าร่วมกิจกรรมจิตอาสา', 'ช่วยเหลือเพื่อนนักเรียน'];
-const REASONS_BAD = ['มาโรงเรียนสาย', 'แต่งกายผิดระเบียบ', 'ไม่ทำการบ้าน', 'ใช้โทรศัพท์ในเวลาเรียน', 'หนีเรียน', 'พูดจาไม่สุภาพกับครู', 'ทะเลาะวิวาท'];
+  const REASONS_GOOD = ['ช่วยงานส่วนรวม', 'เก็บของได้แล้วนำส่งครู', 'เป็นแบบอย่างที่ดีด้านความประพฤติ', 'เข้าร่วมกิจกรรมจิตอาสา', 'ช่วยเหลือเพื่อนนักเรียน'];
+  const REASONS_BAD = ['มาโรงเรียนสาย', 'แต่งกายผิดระเบียบ', 'ไม่ทำการบ้าน', 'ใช้โทรศัพท์ในเวลาเรียน', 'หนีเรียน', 'พูดจาไม่สุภาพกับครู', 'ทะเลาะวิวาท'];
 
-let scoreType = 'add';
-let selectedScoreStudent = null;
-let scoreSearchTimer = null;
+  let scoreType = 'add';
+  let selectedScoreStudent = null;
+  let scoreSearchTimer = null;
 
-function debounceScoreSearch() {
-  clearTimeout(scoreSearchTimer);
-  scoreSearchTimer = setTimeout(searchScoreStudents, 350);
-}
-
-function searchScoreStudents() {
-  const q = document.getElementById('scoreStudentSearch').value.trim();
-  if (!q) { document.getElementById('scoreStudentResults').innerHTML = ''; return; }
-
-  google.script.run
-    .withSuccessHandler(res => {
-      if (!res.success) return;
-      const list = res.students.slice(0, 6);
-      document.getElementById('scoreStudentResults').innerHTML = list.map(st => `
-        <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickScoreStudent(${JSON.stringify(st)})'>
-          <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
-          <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
-          <span class="fw-bold small">${st.CurrentScore}</span>
-        </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
-    })
-    .withFailureHandler(() => {})
-    .apiGetStudents(getToken(), { q: q });
-}
-
-function pickScoreStudent(st) {
-  selectedScoreStudent = st;
-  const box = document.getElementById('scoreSelectedStudent');
-  box.classList.remove('d-none');
-  box.innerHTML = `
-    <div class="d-flex align-items-center gap-2">
-      <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
-      <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">คะแนนคงเหลือ ${st.CurrentScore} คะแนน (${st.EducationPhase || '-'})</span></div>
-      <i class="bi bi-x-lg" style="cursor:pointer" onclick="clearScoreStudent()"></i>
-    </div>`;
-  document.getElementById('scoreStudentResults').innerHTML = '';
-  document.getElementById('scoreStudentSearch').value = '';
-  document.getElementById('scoreFormBody').classList.remove('d-none');
-}
-
-function clearScoreStudent() {
-  selectedScoreStudent = null;
-  document.getElementById('scoreSelectedStudent').classList.add('d-none');
-  document.getElementById('scoreFormBody').classList.add('d-none');
-}
-
-function setScoreType(t) {
-  scoreType = t;
-  document.getElementById('btnScoreAdd').classList.toggle('active', t === 'add');
-  document.getElementById('btnScoreDeduct').classList.toggle('active', t === 'deduct');
-  const presetSel = document.getElementById('scoreReasonPreset');
-  presetSel.innerHTML = '<option value="">-- เลือกหมวด หรือพิมพ์เอง --</option>' +
-    (t === 'add' ? REASONS_GOOD : REASONS_BAD).map(r => `<option>${r}</option>`).join('');
-  renderScorePresetGrid();
-}
-
-function applyScorePreset() {
-  const v = document.getElementById('scoreReasonPreset').value;
-  if (v) document.getElementById('scoreReasonText').value = v;
-}
-
-function renderScorePresetGrid() {
-  const list = scoreType === 'add' ? REASONS_GOOD : REASONS_BAD;
-  document.getElementById('scorePresetGrid').innerHTML = list.map(r => `
-    <span class="chip-tab" onclick="document.getElementById('scoreReasonText').value='${r}'; document.getElementById('scoreReasonPreset').value='${r}';">${r}</span>`).join('');
-}
-
-function submitScore() {
-  if (!selectedScoreStudent) {
-    Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
-    return;
-  }
-  const amount = parseInt(document.getElementById('scoreAmount').value) || 0;
-  const reason = document.getElementById('scoreReasonText').value.trim();
-  if (amount <= 0) {
-    Swal.fire({ icon: 'warning', title: 'กรุณาระบุจำนวนคะแนนให้ถูกต้อง' });
-    return;
-  }
-  if (!reason) {
-    Swal.fire({ icon: 'warning', title: 'กรุณาระบุเหตุผล' });
-    return;
+  function debounceScoreSearch() {
+    clearTimeout(scoreSearchTimer);
+    scoreSearchTimer = setTimeout(searchScoreStudents, 350);
   }
 
-  Swal.fire({
-    icon: 'question',
-    title: scoreType === 'add' ? `เพิ่มคะแนน ${amount} คะแนน?` : `ลดคะแนน ${amount} คะแนน?`,
-    text: `${selectedScoreStudent.Prefix || ''}${selectedScoreStudent.FirstName} ${selectedScoreStudent.LastName} — เหตุผล: ${reason}`,
-    showCancelButton: true,
-    confirmButtonText: 'ยืนยันบันทึก',
-    cancelButtonText: 'ยกเลิก',
-    confirmButtonColor: scoreType === 'add' ? '#1f8a5b' : '#c2483a'
-  }).then(r => {
-    if (!r.isConfirmed) return;
+  function searchScoreStudents() {
+    const q = document.getElementById('scoreStudentSearch').value.trim();
+    if (!q) { document.getElementById('scoreStudentResults').innerHTML = ''; return; }
 
     google.script.run
       .withSuccessHandler(res => {
+        if (!res.success) return;
+        const list = res.students.slice(0, 6);
+        document.getElementById('scoreStudentResults').innerHTML = list.map(st => `
+          <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickScoreStudent(${JSON.stringify(st)})'>
+            <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
+            <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
+            <span class="fw-bold small">${st.CurrentScore}</span>
+          </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
+      })
+      .withFailureHandler(() => {})
+      .apiGetStudents(getToken(), { q: q });
+  }
+
+  function pickScoreStudent(st) {
+    selectedScoreStudent = st;
+    const box = document.getElementById('scoreSelectedStudent');
+    box.classList.remove('d-none');
+    box.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
+        <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">คะแนนคงเหลือ ${st.CurrentScore} คะแนน (${st.EducationPhase || '-'})</span></div>
+        <i class="bi bi-x-lg" style="cursor:pointer" onclick="clearScoreStudent()"></i>
+      </div>`;
+    document.getElementById('scoreStudentResults').innerHTML = '';
+    document.getElementById('scoreStudentSearch').value = '';
+    document.getElementById('scoreFormBody').classList.remove('d-none');
+  }
+
+  function clearScoreStudent() {
+    selectedScoreStudent = null;
+    document.getElementById('scoreSelectedStudent').classList.add('d-none');
+    document.getElementById('scoreFormBody').classList.add('d-none');
+  }
+
+  function setScoreType(t) {
+    scoreType = t;
+    document.getElementById('btnScoreAdd').classList.toggle('active', t === 'add');
+    document.getElementById('btnScoreDeduct').classList.toggle('active', t === 'deduct');
+    const presetSel = document.getElementById('scoreReasonPreset');
+    presetSel.innerHTML = '<option value="">-- เลือกหมวด หรือพิมพ์เอง --</option>' +
+      (t === 'add' ? REASONS_GOOD : REASONS_BAD).map(r => `<option>${r}</option>`).join('');
+    renderScorePresetGrid();
+  }
+
+  function applyScorePreset() {
+    const v = document.getElementById('scoreReasonPreset').value;
+    if (v) document.getElementById('scoreReasonText').value = v;
+  }
+
+  function renderScorePresetGrid() {
+    const list = scoreType === 'add' ? REASONS_GOOD : REASONS_BAD;
+    document.getElementById('scorePresetGrid').innerHTML = list.map(r => `
+      <span class="chip-tab" onclick="document.getElementById('scoreReasonText').value='${r}'; document.getElementById('scoreReasonPreset').value='${r}';">${r}</span>`).join('');
+  }
+
+  function submitScore() {
+    if (!selectedScoreStudent) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
+      return;
+    }
+    const amount = parseInt(document.getElementById('scoreAmount').value) || 0;
+    const reason = document.getElementById('scoreReasonText').value.trim();
+    if (amount <= 0) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาระบุจำนวนคะแนนให้ถูกต้อง' });
+      return;
+    }
+    if (!reason) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาระบุเหตุผล' });
+      return;
+    }
+
+    Swal.fire({
+      icon: 'question',
+      title: scoreType === 'add' ? `เพิ่มคะแนน ${amount} คะแนน?` : `ลดคะแนน ${amount} คะแนน?`,
+      text: `${selectedScoreStudent.Prefix || ''}${selectedScoreStudent.FirstName} ${selectedScoreStudent.LastName} — เหตุผล: ${reason}`,
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันบันทึก',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: scoreType === 'add' ? '#1f8a5b' : '#c2483a'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res.success) {
+            Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+            return;
+          }
+          let msg = `คะแนนคงเหลือ: ${res.newScore} คะแนน`;
+          if (res.alertTriggered !== null && res.alertTriggered !== undefined) {
+            msg += `\n⚠️ คะแนนลดถึงเกณฑ์ ${res.alertTriggered} คะแนน — ควรเชิญผู้ปกครอง`;
+          }
+          Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: msg, timer: 2800, showConfirmButton: false });
+
+          document.getElementById('scoreReasonText').value = '';
+          document.getElementById('scoreReasonPreset').value = '';
+          clearScoreStudent();
+          loadScoreHistory();
+        })
+        .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+        .apiAddScore(getToken(), {
+          studentId: selectedScoreStudent.StudentID,
+          type: scoreType,
+          amount: amount,
+          reason: reason
+        });
+    });
+  }
+
+  function loadScoreHistory(studentId) {
+    document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+    google.script.run
+      .withSuccessHandler(res => {
         if (!res.success) {
-          Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+          document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
           return;
         }
-        let msg = `คะแนนคงเหลือ: ${res.newScore} คะแนน`;
-        if (res.alertTriggered !== null && res.alertTriggered !== undefined) {
-          msg += `\n⚠️ คะแนนลดถึงเกณฑ์ ${res.alertTriggered} คะแนน — ควรเชิญผู้ปกครอง`;
-        }
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: msg, timer: 2800, showConfirmButton: false });
-
-        document.getElementById('scoreReasonText').value = '';
-        document.getElementById('scoreReasonPreset').value = '';
-        clearScoreStudent();
-        loadScoreHistory();
+        const rows = res.logs.map(l => `
+          <tr>
+            <td>${l.StudentName}<div class="text-secondary" style="font-size:.72rem">${l.StudentID}</div></td>
+            <td>${l.Type === 'add' ? '<span class="badge-soft badge-good">เพิ่มคะแนน</span>' : '<span class="badge-soft badge-bad">ลดคะแนน</span>'}</td>
+            <td class="fw-bold" style="color:${l.Type === 'add' ? 'var(--good)' : 'var(--bad)'}">${l.Type === 'add' ? '+' : '-'}${l.Amount}</td>
+            <td class="text-secondary small">${l.Reason}</td>
+            <td class="text-secondary small">${l.RecordedByName}</td>
+            <td class="text-secondary small">${toThaiDate(l.Timestamp, true)}</td>
+          </tr>`).join('');
+        document.getElementById('scoreHistoryBody').innerHTML = rows || '<tr><td colspan="6" class="text-center text-secondary py-4">ยังไม่มีประวัติการบันทึกคะแนน</td></tr>';
       })
-      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
-      .apiAddScore(getToken(), {
-        studentId: selectedScoreStudent.StudentID,
-        type: scoreType,
-        amount: amount,
-        reason: reason
-      });
-  });
-}
-
-function loadScoreHistory(studentId) {
-  document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
-  google.script.run
-    .withSuccessHandler(res => {
-      if (!res.success) {
+      .withFailureHandler(() => {
         document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
-        return;
-      }
-      const rows = res.logs.map(l => `
-        <tr>
-          <td>${l.StudentName}<div class="text-secondary" style="font-size:.72rem">${l.StudentID}</div></td>
-          <td>${l.Type === 'add' ? '<span class="badge-soft badge-good">เพิ่มคะแนน</span>' : '<span class="badge-soft badge-bad">ลดคะแนน</span>'}</td>
-          <td class="fw-bold" style="color:${l.Type === 'add' ? 'var(--good)' : 'var(--bad)'}">${l.Type === 'add' ? '+' : '-'}${l.Amount}</td>
-          <td class="text-secondary small">${l.Reason}</td>
-          <td class="text-secondary small">${l.RecordedByName}</td>
-          <td class="text-secondary small">${toThaiDate(l.Timestamp, true)}</td>
-        </tr>`).join('');
-      document.getElementById('scoreHistoryBody').innerHTML = rows || '<tr><td colspan="6" class="text-center text-secondary py-4">ยังไม่มีประวัติการบันทึกคะแนน</td></tr>';
-    })
-    .withFailureHandler(() => {
-      document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
-    })
-    .apiGetScoreHistory(getToken(), studentId ? { studentId: studentId, limit: 100 } : { limit: 50 });
-}
-
-/* ================= เข้าถึงหน้าเพิ่ม/ลดคะแนนจากโปรไฟล์นักเรียน ================= */
-function openScoreForStudent(studentId, prefix, firstName, lastName, grade, room, currentScore, educationPhase) {
-  switchView('score');
-  setScoreType('add');
-  pickScoreStudent({
-    StudentID: studentId, Prefix: prefix, FirstName: firstName, LastName: lastName,
-    Grade: grade, Room: room, CurrentScore: currentScore, EducationPhase: educationPhase
-  });
-}
-/* ================= LEAVE REQUEST MODULE ================= */
-let leaveSearchTimer = null;
-let selectedLeaveStudent = null;
-let currentLeaveTab = 'pending';
-
-function debounceLeaveSearch() {
-  clearTimeout(leaveSearchTimer);
-  leaveSearchTimer = setTimeout(searchLeaveStudents, 350);
-}
-
-function searchLeaveStudents() {
-  const q = document.getElementById('leaveStudentSearch').value.trim();
-  if (!q) { document.getElementById('leaveStudentResults').innerHTML = ''; return; }
-
-  google.script.run
-    .withSuccessHandler(res => {
-      if (!res.success) return;
-      const list = res.students.slice(0, 6);
-      document.getElementById('leaveStudentResults').innerHTML = list.map(st => `
-        <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickLeaveStudent(${JSON.stringify(st)})'>
-          <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
-          <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
-        </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
-    })
-    .withFailureHandler(() => {})
-    .apiGetStudents(getToken(), { q: q });
-}
-
-function pickLeaveStudent(st) {
-  selectedLeaveStudent = st;
-  const box = document.getElementById('leaveSelectedStudent');
-  box.classList.remove('d-none');
-  box.innerHTML = `
-    <div class="d-flex align-items-center gap-2">
-      <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
-      <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">${st.Grade}/${st.Room}</span></div>
-      <i class="bi bi-x-lg" style="cursor:pointer" onclick="selectedLeaveStudent=null; document.getElementById('leaveSelectedStudent').classList.add('d-none')"></i>
-    </div>`;
-  document.getElementById('leaveStudentResults').innerHTML = '';
-  document.getElementById('leaveStudentSearch').value = '';
-}
-
-function openAddLeaveModal() {
-  selectedLeaveStudent = null;
-  document.getElementById('leaveSelectedStudent').classList.add('d-none');
-  document.getElementById('leaveStudentSearch').value = '';
-  document.getElementById('leaveStudentResults').innerHTML = '';
-  document.getElementById('lm_reason').value = '';
-  document.getElementById('lm_outTime').value = '';
-  document.getElementById('lm_inTime').value = '';
-  new bootstrap.Modal(document.getElementById('leaveModal')).show();
-}
-
-function submitLeaveRequest() {
-  if (!selectedLeaveStudent) {
-    Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
-    return;
-  }
-  const reason = document.getElementById('lm_reason').value.trim();
-  const outTime = document.getElementById('lm_outTime').value;
-  const inTime = document.getElementById('lm_inTime').value;
-
-  if (!reason || !outTime || !inTime) {
-    Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ', text: 'ต้องระบุเหตุผล เวลาที่ขอออก และเวลาที่ขอกลับ' });
-    return;
+      })
+      .apiGetScoreHistory(getToken(), studentId ? { studentId: studentId, limit: 100 } : { limit: 50 });
   }
 
-  google.script.run
-    .withSuccessHandler(res => {
-      if (res.success) {
-        bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
-        Swal.fire({ icon: 'success', title: 'บันทึกคำร้องเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
-        loadLeaveRequests();
-      } else {
-        Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
-      }
-    })
-    .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
-    .apiCreateLeaveRequest(getToken(), {
-      studentId: selectedLeaveStudent.StudentID,
-      reason: reason,
-      outTime: outTime,
-      inTime: inTime
+  /* ================= เข้าถึงหน้าเพิ่ม/ลดคะแนนจากโปรไฟล์นักเรียน ================= */
+  function openScoreForStudent(studentId, prefix, firstName, lastName, grade, room, currentScore, educationPhase) {
+    switchView('score');
+    setScoreType('add');
+    pickScoreStudent({
+      StudentID: studentId, Prefix: prefix, FirstName: firstName, LastName: lastName,
+      Grade: grade, Room: room, CurrentScore: currentScore, EducationPhase: educationPhase
     });
-}
+  }
 
-function switchLeaveTab(status) {
-  currentLeaveTab = status;
-  document.querySelectorAll('#leaveTabs .chip-tab').forEach(t => t.classList.toggle('active', t.dataset.status === status));
-  loadLeaveRequests();
-}
+  /* ================= LEAVE REQUEST MODULE ================= */
+  let leaveSearchTimer = null;
+  let selectedLeaveStudent = null;
+  let currentLeaveTab = 'pending';
 
-function loadLeaveRequests() {
-  document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+  function debounceLeaveSearch() {
+    clearTimeout(leaveSearchTimer);
+    leaveSearchTimer = setTimeout(searchLeaveStudents, 350);
+  }
 
-  google.script.run
-    .withSuccessHandler(res => {
-      if (!res.success) {
-        document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
-        return;
-      }
-      document.getElementById('leavePendingBadge').textContent = res.pendingCount;
-      document.getElementById('leaveApprovedBadge').textContent = res.approvedCount;
-      document.getElementById('leaveRejectedBadge').textContent = res.rejectedCount;
-      document.getElementById('leaveAllBadge').textContent = res.totalCount;
+  function searchLeaveStudents() {
+    const q = document.getElementById('leaveStudentSearch').value.trim();
+    if (!q) { document.getElementById('leaveStudentResults').innerHTML = ''; return; }
 
-      const canApprove = currentUser && currentUser.permissions && currentUser.permissions.approveLeave;
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) return;
+        const list = res.students.slice(0, 6);
+        document.getElementById('leaveStudentResults').innerHTML = list.map(st => `
+          <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickLeaveStudent(${JSON.stringify(st)})'>
+            <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
+            <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
+          </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
+      })
+      .withFailureHandler(() => {})
+      .apiGetStudents(getToken(), { q: q });
+  }
 
-      const rows = res.requests.map(r => {
-        const statusBadge = r.Status === 'pending' ? '<span class="badge-soft badge-warn">รอดำเนินการ</span>'
-          : r.Status === 'approved' ? '<span class="badge-soft badge-good">อนุมัติแล้ว</span>'
-          : '<span class="badge-soft badge-bad">ไม่อนุมัติ</span>';
+  function pickLeaveStudent(st) {
+    selectedLeaveStudent = st;
+    const box = document.getElementById('leaveSelectedStudent');
+    box.classList.remove('d-none');
+    box.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
+        <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">${st.Grade}/${st.Room}</span></div>
+        <i class="bi bi-x-lg" style="cursor:pointer" onclick="selectedLeaveStudent=null; document.getElementById('leaveSelectedStudent').classList.add('d-none')"></i>
+      </div>`;
+    document.getElementById('leaveStudentResults').innerHTML = '';
+    document.getElementById('leaveStudentSearch').value = '';
+  }
 
-        const actionBtns = (r.Status === 'pending' && canApprove) ? `
-          <button class="btn btn-sm btn-outline-success me-1" onclick="handleLeaveAction('${r.RequestID}','approved')"><i class="bi bi-check-lg"></i></button>
-          <button class="btn btn-sm btn-outline-danger" onclick="handleLeaveAction('${r.RequestID}','rejected')"><i class="bi bi-x-lg"></i></button>`
-          : '<span class="text-secondary small">—</span>';
+  function openAddLeaveModal() {
+    selectedLeaveStudent = null;
+    document.getElementById('leaveSelectedStudent').classList.add('d-none');
+    document.getElementById('leaveStudentSearch').value = '';
+    document.getElementById('leaveStudentResults').innerHTML = '';
+    document.getElementById('lm_reason').value = '';
+    document.getElementById('lm_outTime').value = '';
+    document.getElementById('lm_inTime').value = '';
+    new bootstrap.Modal(document.getElementById('leaveModal')).show();
+  }
 
-        return `
-        <tr>
-          <td>${r.StudentName}<div class="text-secondary" style="font-size:.72rem">${r.StudentClass}</div></td>
-          <td class="text-secondary small">${r.Reason}</td>
-          <td class="small">ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.</td>
-          <td>${statusBadge}</td>
-          <td class="text-end">${actionBtns}</td>
-        </tr>`;
-      }).join('');
+  function submitLeaveRequest() {
+    if (!selectedLeaveStudent) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
+      return;
+    }
+    const reason = document.getElementById('lm_reason').value.trim();
+    const outTime = document.getElementById('lm_outTime').value;
+    const inTime = document.getElementById('lm_inTime').value;
 
-      document.getElementById('leaveTableBody').innerHTML = rows || '<tr><td colspan="5" class="text-center text-secondary py-4">ไม่มีรายการ</td></tr>';
-    })
-    .withFailureHandler(() => {
-      document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
-    })
-    .apiGetLeaveRequests(getToken(), { status: currentLeaveTab });
-}
-
-function handleLeaveAction(requestId, status) {
-  Swal.fire({
-    icon: status === 'approved' ? 'question' : 'warning',
-    title: status === 'approved' ? 'อนุมัติคำร้องนี้?' : 'ไม่อนุมัติคำร้องนี้?',
-    input: 'text',
-    inputLabel: 'ระบุเหตุผล (ถ้ามี)',
-    inputPlaceholder: 'เช่น เอกสารไม่ครบ',
-    showCancelButton: true,
-    confirmButtonText: 'ยืนยัน',
-    cancelButtonText: 'ยกเลิก',
-    confirmButtonColor: status === 'approved' ? '#1f8a5b' : '#c2483a'
-  }).then(r => {
-    if (!r.isConfirmed) return;
+    if (!reason || !outTime || !inTime) {
+      Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ', text: 'ต้องระบุเหตุผล เวลาที่ขอออก และเวลาที่ขอกลับ' });
+      return;
+    }
 
     google.script.run
       .withSuccessHandler(res => {
         if (res.success) {
-          Swal.fire({ icon: 'success', title: 'บันทึกผลการดำเนินการแล้ว', timer: 1500, showConfirmButton: false });
+          bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
+          Swal.fire({ icon: 'success', title: 'บันทึกคำร้องเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
           loadLeaveRequests();
         } else {
-          Swal.fire({ icon: 'error', title: 'ดำเนินการไม่สำเร็จ', text: res.message });
+          Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
         }
       })
       .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
-      .apiUpdateLeaveStatus(getToken(), requestId, status, r.value || '');
-  });
-}
+      .apiCreateLeaveRequest(getToken(), {
+        studentId: selectedLeaveStudent.StudentID,
+        reason: reason,
+        outTime: outTime,
+        inTime: inTime
+      });
+  }
+
+  function switchLeaveTab(status) {
+    currentLeaveTab = status;
+    document.querySelectorAll('#leaveTabs .chip-tab').forEach(t => t.classList.toggle('active', t.dataset.status === status));
+    loadLeaveRequests();
+  }
+
+  function loadLeaveRequests() {
+    document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) {
+          document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+          return;
+        }
+        document.getElementById('leavePendingBadge').textContent = res.pendingCount;
+        document.getElementById('leaveApprovedBadge').textContent = res.approvedCount;
+        document.getElementById('leaveRejectedBadge').textContent = res.rejectedCount;
+        document.getElementById('leaveAllBadge').textContent = res.totalCount;
+
+        const canApprove = currentUser && currentUser.permissions && currentUser.permissions.approveLeave;
+
+        const rows = res.requests.map(r => {
+          const statusBadge = r.Status === 'pending' ? '<span class="badge-soft badge-warn">รอดำเนินการ</span>'
+            : r.Status === 'approved' ? '<span class="badge-soft badge-good">อนุมัติแล้ว</span>'
+            : '<span class="badge-soft badge-bad">ไม่อนุมัติ</span>';
+
+          const actionBtns = (r.Status === 'pending' && canApprove) ? `
+            <button class="btn btn-sm btn-outline-success me-1" onclick="handleLeaveAction('${r.RequestID}','approved')"><i class="bi bi-check-lg"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="handleLeaveAction('${r.RequestID}','rejected')"><i class="bi bi-x-lg"></i></button>`
+            : '<span class="text-secondary small">—</span>';
+
+          return `
+          <tr>
+            <td>${r.StudentName}<div class="text-secondary" style="font-size:.72rem">${r.StudentClass}</div></td>
+            <td class="text-secondary small">${r.Reason}</td>
+            <td class="small">ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.</td>
+            <td>${statusBadge}</td>
+            <td class="text-end">${actionBtns}</td>
+          </tr>`;
+        }).join('');
+
+        document.getElementById('leaveTableBody').innerHTML = rows || '<tr><td colspan="5" class="text-center text-secondary py-4">ไม่มีรายการ</td></tr>';
+      })
+      .withFailureHandler(() => {
+        document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+      })
+      .apiGetLeaveRequests(getToken(), { status: currentLeaveTab });
+  }
+
+  function handleLeaveAction(requestId, status) {
+    Swal.fire({
+      icon: status === 'approved' ? 'question' : 'warning',
+      title: status === 'approved' ? 'อนุมัติคำร้องนี้?' : 'ไม่อนุมัติคำร้องนี้?',
+      input: 'text',
+      inputLabel: 'ระบุเหตุผล (ถ้ามี)',
+      inputPlaceholder: 'เช่น เอกสารไม่ครบ',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยัน',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: status === 'approved' ? '#1f8a5b' : '#c2483a'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            Swal.fire({ icon: 'success', title: 'บันทึกผลการดำเนินการแล้ว', timer: 1500, showConfirmButton: false });
+            loadLeaveRequests();
+          } else {
+            Swal.fire({ icon: 'error', title: 'ดำเนินการไม่สำเร็จ', text: res.message });
+          }
+        })
+        .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+        .apiUpdateLeaveStatus(getToken(), requestId, status, r.value || '');
+    });
+  }
+
+  /* ================= LETTER MODULE ================= */
+  let letterSearchTimer = null;
+  let selectedLetterStudent = null;
+  let currentLetterTab = 'draft';
+
+  function debounceLetterSearch() {
+    clearTimeout(letterSearchTimer);
+    letterSearchTimer = setTimeout(searchLetterStudents, 350);
+  }
+
+  function searchLetterStudents() {
+    const q = document.getElementById('letterStudentSearch').value.trim();
+    if (!q) { document.getElementById('letterStudentResults').innerHTML = ''; return; }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) return;
+        const list = res.students.slice(0, 6);
+        document.getElementById('letterStudentResults').innerHTML = list.map(st => `
+          <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickLetterStudent(${JSON.stringify(st)})'>
+            <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
+            <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
+          </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
+      })
+      .withFailureHandler(() => {})
+      .apiGetStudents(getToken(), { q: q });
+  }
+
+  function pickLetterStudent(st) {
+    selectedLetterStudent = st;
+    const box = document.getElementById('letterSelectedStudent');
+    box.classList.remove('d-none');
+    box.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
+        <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">${st.Grade}/${st.Room}</span></div>
+        <i class="bi bi-x-lg" style="cursor:pointer" onclick="selectedLetterStudent=null; document.getElementById('letterSelectedStudent').classList.add('d-none')"></i>
+      </div>`;
+    document.getElementById('letterStudentResults').innerHTML = '';
+    document.getElementById('letterStudentSearch').value = '';
+  }
+
+  function openAddLetterModal() {
+    selectedLetterStudent = null;
+    document.getElementById('letterSelectedStudent').classList.add('d-none');
+    document.getElementById('letterStudentSearch').value = '';
+    document.getElementById('letterStudentResults').innerHTML = '';
+    document.getElementById('lt_subject').value = '';
+    document.getElementById('lt_detail').value = '';
+    document.getElementById('lt_signatureType').value = 'ลายเซ็นสแกน';
+    new bootstrap.Modal(document.getElementById('letterModal')).show();
+  }
+
+  function submitLetterDraft() {
+    if (!selectedLetterStudent) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
+      return;
+    }
+    const subject = document.getElementById('lt_subject').value.trim();
+    if (!subject) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาระบุเรื่อง' });
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          bootstrap.Modal.getInstance(document.getElementById('letterModal')).hide();
+          Swal.fire({ icon: 'success', title: 'สร้างร่างหนังสือเรียบร้อยแล้ว', text: 'เลขที่ ' + res.letterNo, timer: 2000, showConfirmButton: false });
+          loadLetters();
+        } else {
+          Swal.fire({ icon: 'error', title: 'สร้างไม่สำเร็จ', text: res.message });
+        }
+      })
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+      .apiCreateLetter(getToken(), {
+        studentId: selectedLetterStudent.StudentID,
+        subject: subject,
+        detail: document.getElementById('lt_detail').value.trim(),
+        signatureType: document.getElementById('lt_signatureType').value
+      });
+  }
+
+  function switchLetterTab(status) {
+    currentLetterTab = status;
+    document.querySelectorAll('#letterTabs .chip-tab').forEach(t => t.classList.toggle('active', t.dataset.status === status));
+    loadLetters();
+  }
+
+  function loadLetters() {
+    document.getElementById('letterTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) {
+          document.getElementById('letterTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+          return;
+        }
+        document.getElementById('letterDraftBadge').textContent = res.draftCount;
+        document.getElementById('letterConfirmedBadge').textContent = res.confirmedCount;
+        document.getElementById('letterAllBadge').textContent = res.totalCount;
+
+        const canManage = currentUser && currentUser.permissions && currentUser.permissions.editDelete;
+
+        const rows = res.letters.map(l => {
+          const statusBadge = l.Status === 'draft' ? '<span class="badge-soft badge-warn">ร่าง (รอยืนยัน)</span>' : '<span class="badge-soft badge-good">ออกเอกสารแล้ว</span>';
+          let actionBtn = '<span class="text-secondary small">—</span>';
+          if (l.Status === 'draft' && canManage) {
+            actionBtn = `<button class="btn btn-sm btn-navy" onclick="confirmLetter('${l.LetterID}')"><i class="bi bi-check-lg me-1"></i>ยืนยันออกเอกสาร</button>`;
+          } else if (l.Status === 'confirmed' && l.PdfFileID) {
+            actionBtn = `<a class="btn btn-sm btn-outline-secondary" href="https://drive.google.com/file/d/${l.PdfFileID}/view" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>เปิด PDF</a>`;
+          }
+          return `
+          <tr>
+            <td>${l.LetterNo}</td>
+            <td>${l.StudentName}</td>
+            <td class="text-secondary small">${l.Subject}</td>
+            <td><span class="badge-soft badge-navy">${l.SignatureType}</span></td>
+            <td>${statusBadge}</td>
+            <td class="text-end">${actionBtn}</td>
+          </tr>`;
+        }).join('');
+
+        document.getElementById('letterTableBody').innerHTML = rows || '<tr><td colspan="6" class="text-center text-secondary py-4">ไม่มีรายการ</td></tr>';
+      })
+      .withFailureHandler(() => {
+        document.getElementById('letterTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+      })
+      .apiGetLetters(getToken(), { status: currentLetterTab });
+  }
+
+  function confirmLetter(letterId) {
+    Swal.fire({
+      icon: 'question',
+      title: 'ยืนยันออกเอกสาร?',
+      text: 'ระบบจะสร้างไฟล์ PDF และบันทึกลง Google Drive',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันออกเอกสาร',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#152A52'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+
+      Swal.fire({ title: 'กำลังสร้างเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            Swal.fire({
+              icon: 'success', title: 'ออกเอกสารเรียบร้อยแล้ว',
+              html: `<a href="${res.pdfUrl}" target="_blank" class="btn btn-sm btn-navy mt-2">เปิดไฟล์ PDF</a>`
+            });
+            loadLetters();
+          } else {
+            Swal.fire({ icon: 'error', title: 'ดำเนินการไม่สำเร็จ', text: res.message });
+          }
+        })
+        .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+        .apiConfirmLetter(getToken(), letterId);
+    });
+  }
+
+  /* ================= USER MANAGEMENT MODULE ================= */
+  function loadUsers() {
+    document.getElementById('userTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) {
+          document.getElementById('userTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-secondary py-4">${res.message}</td></tr>`;
+          return;
+        }
+        const rows = res.users.map(u => {
+          const isSelf = currentUser && u.UserID === currentUser.userId;
+          const statusBadge = u.Active ? '<span class="badge-soft badge-good">ใช้งานอยู่</span>' : '<span class="badge-soft badge-bad">ระงับการใช้งาน</span>';
+          const lastLogin = u.LastLogin ? toThaiDate(u.LastLogin, true) : 'ยังไม่เคยเข้าใช้งาน';
+          const toggleBtn = isSelf
+            ? '<span class="text-secondary small">บัญชีของฉัน</span>'
+            : (u.Active
+                ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleUser('${u.UserID}', false, '${u.FullName}')"><i class="bi bi-slash-circle me-1"></i>ระงับ</button>`
+                : `<button class="btn btn-sm btn-outline-success" onclick="toggleUser('${u.UserID}', true, '${u.FullName}')"><i class="bi bi-check-circle me-1"></i>เปิดใช้งาน</button>`);
+          return `
+          <tr>
+            <td>${u.Username}</td>
+            <td>${u.FullName}</td>
+            <td><span class="badge-soft badge-navy">${CONFIG_ROLE_LABELS_CLIENT[u.Role] || u.Role}</span></td>
+            <td>${statusBadge}</td>
+            <td class="text-secondary small">${lastLogin}</td>
+            <td class="text-end">${toggleBtn}</td>
+          </tr>`;
+        }).join('');
+        document.getElementById('userTableBody').innerHTML = rows || '<tr><td colspan="6" class="text-center text-secondary py-4">ไม่มีข้อมูลผู้ใช้งาน</td></tr>';
+      })
+      .withFailureHandler(err => {
+        document.getElementById('userTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-secondary py-4">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+      })
+      .apiGetUsers(getToken());
+  }
+
+  const CONFIG_ROLE_LABELS_CLIENT = {
+    admin: 'ผู้ดูแลระบบ',
+    deputy: 'รองผู้อำนวยการ/ผู้บริหาร',
+    advisor: 'ครูที่ปรึกษา',
+    discipline: 'ครูฝ่ายปกครอง',
+    patrol: 'คณะกรรมการสารวัตรนักเรียน'
+  };
+
+  function openAddUserModal() {
+    document.getElementById('um_username').value = '';
+    document.getElementById('um_fullName').value = '';
+    document.getElementById('um_role').value = 'advisor';
+    document.getElementById('um_password').value = '';
+    new bootstrap.Modal(document.getElementById('userModal')).show();
+  }
+
+  function submitAddUser() {
+    const payload = {
+      username: document.getElementById('um_username').value.trim(),
+      fullName: document.getElementById('um_fullName').value.trim(),
+      role: document.getElementById('um_role').value,
+      password: document.getElementById('um_password').value
+    };
+    if (!payload.username || !payload.fullName || !payload.password) {
+      Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ' });
+      return;
+    }
+    if (payload.password.length < 8) {
+      Swal.fire({ icon: 'warning', title: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+          Swal.fire({ icon: 'success', title: 'เพิ่มผู้ใช้งานเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+          loadUsers();
+        } else {
+          Swal.fire({ icon: 'error', title: 'เพิ่มไม่สำเร็จ', text: res.message });
+        }
+      })
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+      .apiAddUser(getToken(), payload);
+  }
+
+  function toggleUser(userId, active, fullName) {
+    Swal.fire({
+      icon: 'warning',
+      title: active ? 'เปิดใช้งานบัญชีนี้?' : 'ระงับการใช้งานบัญชีนี้?',
+      text: fullName,
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยัน',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: active ? '#1f8a5b' : '#c2483a'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            Swal.fire({ icon: 'success', title: 'ดำเนินการเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+            loadUsers();
+          } else {
+            Swal.fire({ icon: 'error', title: 'ดำเนินการไม่สำเร็จ', text: res.message });
+          }
+        })
+        .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+        .apiToggleUserActive(getToken(), userId, active);
+    });
+  }
+
+  /* ================= CHANGE PASSWORD (ตัวเอง) ================= */
+  function openChangePasswordModal() {
+    document.getElementById('cp_oldPassword').value = '';
+    document.getElementById('cp_newPassword').value = '';
+    document.getElementById('cp_confirmPassword').value = '';
+    new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
+  }
+
+  function submitChangePassword() {
+    const oldPassword = document.getElementById('cp_oldPassword').value;
+    const newPassword = document.getElementById('cp_newPassword').value;
+    const confirmPassword = document.getElementById('cp_confirmPassword').value;
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ' });
+      return;
+    }
+    if (newPassword.length < 8) {
+      Swal.fire({ icon: 'warning', title: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Swal.fire({ icon: 'warning', title: 'รหัสผ่านใหม่ไม่ตรงกัน', text: 'กรุณากรอกยืนยันรหัสผ่านให้ตรงกัน' });
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+          Swal.fire({ icon: 'success', title: 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+        } else {
+          Swal.fire({ icon: 'error', title: 'เปลี่ยนรหัสผ่านไม่สำเร็จ', text: res.message });
+        }
+      })
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+      .apiChangeOwnPassword(getToken(), oldPassword, newPassword);
+  }
 </script>

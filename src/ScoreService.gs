@@ -79,7 +79,14 @@ function api_addScore_(token, payload) {
             'คะแนนคงเหลือ ' + newScore + ' คะแนน (รอบ' + phase + ')',
             'ระบบอัตโนมัติ'
           );
-          break; // แจ้งเตือนเฉพาะเกณฑ์แรกที่ข้าม แม้จะข้ามหลายขั้นในครั้งเดียว
+          // สร้างร่างหนังสือเชิญผู้ปกครองอัตโนมัติทันที (สถานะ draft รอเจ้าหน้าที่ยืนยัน)
+          try {
+            createAutoDraftLetter_(studentId, threshold, newScore);
+          } catch (letterErr) {
+            // ไม่ให้การสร้างหนังสือ error กระทบการบันทึกคะแนนหลัก
+            Logger.log('สร้างร่างหนังสือเชิญอัตโนมัติไม่สำเร็จ: ' + letterErr.message);
+          }
+          break;
         }
       }
     }

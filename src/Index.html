@@ -93,14 +93,15 @@
         ผู้ใช้งาน & สิทธิ์</a>
 
       <div class="user-box">
-        <div class="avatar-mini" id="sbAvatar">-</div>
-        <div style="min-width:0">
-          <div class="text-white small fw-semibold text-truncate" id="sbName">-</div>
-          <div class="text-truncate" style="font-size:.7rem;color:#8c96b3" id="sbRole">-</div>
-        </div>
-        <i class="bi bi-box-arrow-right ms-auto text-white-50" style="cursor:pointer" onclick="doLogout()"
-          title="ออกจากระบบ"></i>
-      </div>
+  <div class="avatar-mini" id="sbAvatar">-</div>
+  <div style="min-width:0">
+    <div class="text-white small fw-semibold text-truncate" id="sbName">-</div>
+    <div class="text-truncate" style="font-size:.7rem;color:#8c96b3" id="sbRole">-</div>
+  </div>
+  <i class="bi bi-key text-white-50 me-2" style="cursor:pointer" onclick="openChangePasswordModal()" title="เปลี่ยนรหัสผ่าน"></i>
+  <i class="bi bi-box-arrow-right text-white-50" style="cursor:pointer" onclick="doLogout()"
+    title="ออกจากระบบ"></i>
+</div>
     </div>
 
     <div class="main-area">
@@ -334,11 +335,27 @@
   </div>
 </div>
       <div class="view" id="view-letters">
-        <div class="topbar">
-          <h2>หนังสือเชิญผู้ปกครอง</h2>
-        </div>
-        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
-      </div>
+  <div class="topbar">
+    <div>
+      <h2>หนังสือเชิญผู้ปกครอง</h2>
+      <div class="desc">สร้างร่างหนังสือเชิญ ยืนยันออกเอกสาร และดาวน์โหลด PDF</div>
+    </div>
+    <button class="btn btn-gold btn-sm px-3" onclick="openAddLetterModal()"><i class="bi bi-plus-lg"></i> สร้างหนังสือเชิญ</button>
+  </div>
+
+  <div class="d-flex gap-2 mb-3" id="letterTabs">
+    <span class="chip-tab active" data-status="draft" onclick="switchLetterTab('draft')">ร่าง (รอยืนยัน) <span class="badge-soft badge-warn ms-1" id="letterDraftBadge">0</span></span>
+    <span class="chip-tab" data-status="confirmed" onclick="switchLetterTab('confirmed')">ออกเอกสารแล้ว <span class="badge-soft badge-good ms-1" id="letterConfirmedBadge">0</span></span>
+    <span class="chip-tab" data-status="all" onclick="switchLetterTab('all')">ทั้งหมด <span class="badge-soft badge-navy ms-1" id="letterAllBadge">0</span></span>
+  </div>
+
+  <div class="card-panel">
+    <table class="custom-table">
+      <thead><tr><th>เลขที่หนังสือ</th><th>นักเรียน</th><th>เรื่อง</th><th>ลายเซ็น</th><th>สถานะ</th><th class="text-end">การดำเนินการ</th></tr></thead>
+      <tbody id="letterTableBody"><tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
       <div class="view" id="view-reports">
         <div class="topbar">
           <h2>รายงาน & สถิติ</h2>
@@ -352,11 +369,20 @@
         <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
       </div>
       <div class="view" id="view-users">
-        <div class="topbar">
-          <h2>ผู้ใช้งาน & สิทธิ์</h2>
-        </div>
-        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
-      </div>
+  <div class="topbar">
+    <div>
+      <h2>ผู้ใช้งาน & สิทธิ์</h2>
+      <div class="desc">จัดการบัญชีผู้ใช้งานและกำหนดบทบาทในระบบ</div>
+    </div>
+    <button class="btn btn-gold btn-sm px-3" onclick="openAddUserModal()"><i class="bi bi-person-plus me-1"></i> เพิ่มผู้ใช้งาน</button>
+  </div>
+  <div class="card-panel">
+    <table class="custom-table">
+      <thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อ-นามสกุล</th><th>บทบาท</th><th>สถานะ</th><th>เข้าใช้งานล่าสุด</th><th class="text-end">การดำเนินการ</th></tr></thead>
+      <tbody id="userTableBody"><tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
     </div>
   </div>
 
@@ -525,7 +551,118 @@
     </div>
   </div>
 </div>
+<!-- ============ MODAL: สร้างหนังสือเชิญผู้ปกครอง ============ -->
+<div class="modal fade" id="letterModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">สร้างหนังสือเชิญผู้ปกครอง</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ค้นหานักเรียน <span class="text-danger">*</span></label>
+          <div class="search-box"><i class="bi bi-search text-secondary"></i>
+            <input id="letterStudentSearch" placeholder="พิมพ์ชื่อหรือเลขประจำตัว..." oninput="debounceLetterSearch()">
+          </div>
+          <div id="letterStudentResults" class="mt-2" style="max-height:160px; overflow:auto"></div>
+        </div>
+        <div id="letterSelectedStudent" class="d-none mb-3 p-3 rounded-3" style="background:#f6f7fb"></div>
 
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">เรื่อง <span class="text-danger">*</span></label>
+          <input class="form-control" id="lt_subject" placeholder="เช่น เชิญประชุมกรณีความประพฤติ">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รายละเอียดเพิ่มเติม</label>
+          <textarea class="form-control" id="lt_detail" rows="2" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รูปแบบลายเซ็น <span class="text-danger">*</span></label>
+          <select class="form-select" id="lt_signatureType">
+            <option>ลายเซ็นสแกน</option>
+            <option>เซ็นหลังพิมพ์</option>
+          </select>
+          <div class="text-secondary small mt-1"><i class="bi bi-info-circle"></i> ลายเซ็นสแกนจริงจะรองรับในเฟสถัดไป ตอนนี้จะแสดง placeholder</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitLetterDraft()"><i class="bi bi-save2 me-1"></i> สร้างร่างหนังสือ</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ============ MODAL: เพิ่มผู้ใช้งาน ============ -->
+<div class="modal fade" id="userModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">เพิ่มผู้ใช้งานใหม่</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ชื่อผู้ใช้ (Username) <span class="text-danger">*</span></label>
+          <input class="form-control" id="um_username" placeholder="เช่น somchai.j">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ชื่อ-นามสกุล <span class="text-danger">*</span></label>
+          <input class="form-control" id="um_fullName" placeholder="เช่น สมชาย ใจดี">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">บทบาท <span class="text-danger">*</span></label>
+          <select class="form-select" id="um_role">
+            <option value="admin">ผู้ดูแลระบบ</option>
+            <option value="deputy">รองผู้อำนวยการ/ผู้บริหาร</option>
+            <option value="advisor" selected>ครูที่ปรึกษา</option>
+            <option value="discipline">ครูฝ่ายปกครอง</option>
+            <option value="patrol">คณะกรรมการสารวัตรนักเรียน</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่านเริ่มต้น <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="um_password" placeholder="อย่างน้อย 8 ตัวอักษร">
+          <div class="text-secondary small mt-1">แนะนำให้ผู้ใช้เปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitAddUser()"><i class="bi bi-save2 me-1"></i> เพิ่มผู้ใช้งาน</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: เปลี่ยนรหัสผ่านของตนเอง ============ -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">เปลี่ยนรหัสผ่าน</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่านเดิม <span class="text-danger">*</span></label>
+          <input type="password" class="form-control" id="cp_oldPassword">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่านใหม่ <span class="text-danger">*</span></label>
+          <input type="password" class="form-control" id="cp_newPassword" placeholder="อย่างน้อย 8 ตัวอักษร">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ยืนยันรหัสผ่านใหม่ <span class="text-danger">*</span></label>
+          <input type="password" class="form-control" id="cp_confirmPassword">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitChangePassword()"><i class="bi bi-save2 me-1"></i> บันทึกรหัสผ่านใหม่</button>
+      </div>
+    </div>
+  </div>
+</div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <?!= include('JavaScript'); ?>
 </body>

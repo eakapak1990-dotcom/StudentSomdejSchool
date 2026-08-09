@@ -311,11 +311,28 @@
   </div>
 </div>
       <div class="view" id="view-leave">
-        <div class="topbar">
-          <h2>คำร้องออกนอกโรงเรียน</h2>
-        </div>
-        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
-      </div>
+  <div class="topbar">
+    <div>
+      <h2>คำร้องขออนุญาตออกนอกโรงเรียน</h2>
+      <div class="desc">บันทึกคำร้องแทนนักเรียน และดำเนินการอนุมัติ/ไม่อนุมัติ</div>
+    </div>
+    <button class="btn btn-gold btn-sm px-3" onclick="openAddLeaveModal()"><i class="bi bi-plus-lg"></i> สร้างคำร้อง</button>
+  </div>
+
+ <div class="d-flex gap-2 mb-3" id="leaveTabs">
+  <span class="chip-tab active" data-status="pending" onclick="switchLeaveTab('pending')">รอดำเนินการ <span class="badge-soft badge-warn ms-1" id="leavePendingBadge">0</span></span>
+  <span class="chip-tab" data-status="approved" onclick="switchLeaveTab('approved')">อนุมัติแล้ว <span class="badge-soft badge-good ms-1" id="leaveApprovedBadge">0</span></span>
+  <span class="chip-tab" data-status="rejected" onclick="switchLeaveTab('rejected')">ไม่อนุมัติ <span class="badge-soft badge-bad ms-1" id="leaveRejectedBadge">0</span></span>
+  <span class="chip-tab" data-status="all" onclick="switchLeaveTab('all')">ทั้งหมด <span class="badge-soft badge-navy ms-1" id="leaveAllBadge">0</span></span>
+</div>
+
+  <div class="card-panel">
+    <table class="custom-table">
+      <thead><tr><th>นักเรียน</th><th>เหตุผล</th><th>เวลาออก–กลับ</th><th>สถานะ</th><th class="text-end">การดำเนินการ</th></tr></thead>
+      <tbody id="leaveTableBody"><tr><td colspan="5" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
       <div class="view" id="view-letters">
         <div class="topbar">
           <h2>หนังสือเชิญผู้ปกครอง</h2>
@@ -468,6 +485,46 @@
       </div>
     </div>
   </div>
+  <!-- ============ MODAL: สร้างคำร้องออกนอกโรงเรียน ============ -->
+<div class="modal fade" id="leaveModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">สร้างคำร้องขออนุญาตออกนอกโรงเรียน</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ค้นหานักเรียน <span class="text-danger">*</span></label>
+          <div class="search-box"><i class="bi bi-search text-secondary"></i>
+            <input id="leaveStudentSearch" placeholder="พิมพ์ชื่อหรือเลขประจำตัว..." oninput="debounceLeaveSearch()">
+          </div>
+          <div id="leaveStudentResults" class="mt-2" style="max-height:160px; overflow:auto"></div>
+        </div>
+        <div id="leaveSelectedStudent" class="d-none mb-3 p-3 rounded-3" style="background:#f6f7fb"></div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">เหตุผล <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="lm_reason" rows="2" placeholder="เช่น ไปพบแพทย์ ผู้ปกครองมารับกลับบ้าน"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลาที่ขอออก <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="lm_outTime">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลาที่ขอกลับ <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="lm_inTime">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitLeaveRequest()"><i class="bi bi-save2 me-1"></i> บันทึกคำร้อง</button>
+      </div>
+    </div>
+  </div>
+</div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <?!= include('JavaScript'); ?>

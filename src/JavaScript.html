@@ -12,6 +12,19 @@
     }
     return text;
   }
+  function formatTimeDisplay(t) {
+  if (!t) return '-';
+  // ถ้าเป็น string รูปแบบ HH:mm อยู่แล้ว ส่งกลับตรงๆ
+  if (/^\d{1,2}:\d{2}$/.test(t)) return t;
+  // เผื่อกรณี legacy data ที่ยังเป็น ISO date string
+  const d = new Date(t);
+  if (!isNaN(d.getTime())) {
+    const h = String(d.getUTCHours()).padStart(2, '0');
+    const m = String(d.getUTCMinutes()).padStart(2, '0');
+    return h + ':' + m;
+  }
+  return t;
+}
 
   /* ================= SESSION RESTORE ================= */
   document.addEventListener('DOMContentLoaded', function () {
@@ -158,6 +171,7 @@
     if (name === 'students') loadStudents();
     if (name === 'dashboard') loadDashboard();
     if (name === 'score') loadScoreHistory();
+    if (name === 'leave') loadLeaveRequests();
   }
 
   /* ================= STUDENTS MODULE ================= */
@@ -746,6 +760,169 @@ function openScoreForStudent(studentId, prefix, firstName, lastName, grade, room
   pickScoreStudent({
     StudentID: studentId, Prefix: prefix, FirstName: firstName, LastName: lastName,
     Grade: grade, Room: room, CurrentScore: currentScore, EducationPhase: educationPhase
+  });
+}
+/* ================= LEAVE REQUEST MODULE ================= */
+let leaveSearchTimer = null;
+let selectedLeaveStudent = null;
+let currentLeaveTab = 'pending';
+
+function debounceLeaveSearch() {
+  clearTimeout(leaveSearchTimer);
+  leaveSearchTimer = setTimeout(searchLeaveStudents, 350);
+}
+
+function searchLeaveStudents() {
+  const q = document.getElementById('leaveStudentSearch').value.trim();
+  if (!q) { document.getElementById('leaveStudentResults').innerHTML = ''; return; }
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.success) return;
+      const list = res.students.slice(0, 6);
+      document.getElementById('leaveStudentResults').innerHTML = list.map(st => `
+        <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickLeaveStudent(${JSON.stringify(st)})'>
+          <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
+          <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
+        </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
+    })
+    .withFailureHandler(() => {})
+    .apiGetStudents(getToken(), { q: q });
+}
+
+function pickLeaveStudent(st) {
+  selectedLeaveStudent = st;
+  const box = document.getElementById('leaveSelectedStudent');
+  box.classList.remove('d-none');
+  box.innerHTML = `
+    <div class="d-flex align-items-center gap-2">
+      <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
+      <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">${st.Grade}/${st.Room}</span></div>
+      <i class="bi bi-x-lg" style="cursor:pointer" onclick="selectedLeaveStudent=null; document.getElementById('leaveSelectedStudent').classList.add('d-none')"></i>
+    </div>`;
+  document.getElementById('leaveStudentResults').innerHTML = '';
+  document.getElementById('leaveStudentSearch').value = '';
+}
+
+function openAddLeaveModal() {
+  selectedLeaveStudent = null;
+  document.getElementById('leaveSelectedStudent').classList.add('d-none');
+  document.getElementById('leaveStudentSearch').value = '';
+  document.getElementById('leaveStudentResults').innerHTML = '';
+  document.getElementById('lm_reason').value = '';
+  document.getElementById('lm_outTime').value = '';
+  document.getElementById('lm_inTime').value = '';
+  new bootstrap.Modal(document.getElementById('leaveModal')).show();
+}
+
+function submitLeaveRequest() {
+  if (!selectedLeaveStudent) {
+    Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
+    return;
+  }
+  const reason = document.getElementById('lm_reason').value.trim();
+  const outTime = document.getElementById('lm_outTime').value;
+  const inTime = document.getElementById('lm_inTime').value;
+
+  if (!reason || !outTime || !inTime) {
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ', text: 'ต้องระบุเหตุผล เวลาที่ขอออก และเวลาที่ขอกลับ' });
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res.success) {
+        bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
+        Swal.fire({ icon: 'success', title: 'บันทึกคำร้องเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+        loadLeaveRequests();
+      } else {
+        Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+      }
+    })
+    .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+    .apiCreateLeaveRequest(getToken(), {
+      studentId: selectedLeaveStudent.StudentID,
+      reason: reason,
+      outTime: outTime,
+      inTime: inTime
+    });
+}
+
+function switchLeaveTab(status) {
+  currentLeaveTab = status;
+  document.querySelectorAll('#leaveTabs .chip-tab').forEach(t => t.classList.toggle('active', t.dataset.status === status));
+  loadLeaveRequests();
+}
+
+function loadLeaveRequests() {
+  document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.success) {
+        document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+        return;
+      }
+      document.getElementById('leavePendingBadge').textContent = res.pendingCount;
+      document.getElementById('leaveApprovedBadge').textContent = res.approvedCount;
+      document.getElementById('leaveRejectedBadge').textContent = res.rejectedCount;
+      document.getElementById('leaveAllBadge').textContent = res.totalCount;
+
+      const canApprove = currentUser && currentUser.permissions && currentUser.permissions.approveLeave;
+
+      const rows = res.requests.map(r => {
+        const statusBadge = r.Status === 'pending' ? '<span class="badge-soft badge-warn">รอดำเนินการ</span>'
+          : r.Status === 'approved' ? '<span class="badge-soft badge-good">อนุมัติแล้ว</span>'
+          : '<span class="badge-soft badge-bad">ไม่อนุมัติ</span>';
+
+        const actionBtns = (r.Status === 'pending' && canApprove) ? `
+          <button class="btn btn-sm btn-outline-success me-1" onclick="handleLeaveAction('${r.RequestID}','approved')"><i class="bi bi-check-lg"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="handleLeaveAction('${r.RequestID}','rejected')"><i class="bi bi-x-lg"></i></button>`
+          : '<span class="text-secondary small">—</span>';
+
+        return `
+        <tr>
+          <td>${r.StudentName}<div class="text-secondary" style="font-size:.72rem">${r.StudentClass}</div></td>
+          <td class="text-secondary small">${r.Reason}</td>
+          <td class="small">ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.</td>
+          <td>${statusBadge}</td>
+          <td class="text-end">${actionBtns}</td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('leaveTableBody').innerHTML = rows || '<tr><td colspan="5" class="text-center text-secondary py-4">ไม่มีรายการ</td></tr>';
+    })
+    .withFailureHandler(() => {
+      document.getElementById('leaveTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+    })
+    .apiGetLeaveRequests(getToken(), { status: currentLeaveTab });
+}
+
+function handleLeaveAction(requestId, status) {
+  Swal.fire({
+    icon: status === 'approved' ? 'question' : 'warning',
+    title: status === 'approved' ? 'อนุมัติคำร้องนี้?' : 'ไม่อนุมัติคำร้องนี้?',
+    input: 'text',
+    inputLabel: 'ระบุเหตุผล (ถ้ามี)',
+    inputPlaceholder: 'เช่น เอกสารไม่ครบ',
+    showCancelButton: true,
+    confirmButtonText: 'ยืนยัน',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: status === 'approved' ? '#1f8a5b' : '#c2483a'
+  }).then(r => {
+    if (!r.isConfirmed) return;
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          Swal.fire({ icon: 'success', title: 'บันทึกผลการดำเนินการแล้ว', timer: 1500, showConfirmButton: false });
+          loadLeaveRequests();
+        } else {
+          Swal.fire({ icon: 'error', title: 'ดำเนินการไม่สำเร็จ', text: res.message });
+        }
+      })
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+      .apiUpdateLeaveStatus(getToken(), requestId, status, r.value || '');
   });
 }
 </script>

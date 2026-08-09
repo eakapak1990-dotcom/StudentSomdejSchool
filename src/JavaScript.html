@@ -157,6 +157,7 @@
 
     if (name === 'students') loadStudents();
     if (name === 'dashboard') loadDashboard();
+    if (name === 'score') loadScoreHistory();
   }
 
   /* ================= STUDENTS MODULE ================= */
@@ -355,16 +356,18 @@
     const parent = res.parent || {};
     const timeline = res.timeline || [];
 
-    const actionsEl = document.getElementById('profileActions');
-    if (currentUser && currentUser.permissions && currentUser.permissions.editDelete) {
-      actionsEl.innerHTML = `
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-navy" onclick="openEditStudentModal('${st.StudentID}')"><i class="bi bi-pencil-square me-1"></i> แก้ไข</button>
-          <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${st.StudentID}')"><i class="bi bi-trash3 me-1"></i> ลบ</button>
-        </div>`;
-    } else {
-      actionsEl.innerHTML = '';
+  const actionsEl = document.getElementById('profileActions');
+    const canScore = currentUser && currentUser.permissions && currentUser.permissions.score;
+    const canManage = currentUser && currentUser.permissions && currentUser.permissions.editDelete;
+    let actionBtns = '';
+    if (canScore) {
+      actionBtns += `<button class="btn btn-sm btn-gold" onclick="openScoreForStudent('${st.StudentID}','${st.Prefix||''}','${st.FirstName||''}','${st.LastName||''}','${st.Grade||''}','${st.Room||''}',${st.CurrentScore},'${st.EducationPhase||''}')"><i class="bi bi-award me-1"></i> บันทึกคะแนน</button>`;
     }
+    if (canManage) {
+      actionBtns += `<button class="btn btn-sm btn-navy" onclick="openEditStudentModal('${st.StudentID}')"><i class="bi bi-pencil-square me-1"></i> แก้ไข</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent('${st.StudentID}')"><i class="bi bi-trash3 me-1"></i> ลบ</button>`;
+    }
+    actionsEl.innerHTML = actionBtns ? `<div class="d-flex gap-2">${actionBtns}</div>` : '';
 
     const eventIcon = { create: 'bi-plus-circle', add: 'bi-plus', deduct: 'bi-dash', invite: 'bi-envelope', leave: 'bi-door-open', line: 'bi-line' };
     const eventColor = { create: 'var(--navy-800)', add: 'var(--good)', deduct: 'var(--bad)', invite: 'var(--warn)', leave: 'var(--navy-800)', line: '#06C755' };
@@ -583,4 +586,166 @@
       })
       .apiGetDashboardSummary(getToken());
   }
+  /* ================= SCORE MODULE ================= */
+const REASONS_GOOD = ['ช่วยงานส่วนรวม', 'เก็บของได้แล้วนำส่งครู', 'เป็นแบบอย่างที่ดีด้านความประพฤติ', 'เข้าร่วมกิจกรรมจิตอาสา', 'ช่วยเหลือเพื่อนนักเรียน'];
+const REASONS_BAD = ['มาโรงเรียนสาย', 'แต่งกายผิดระเบียบ', 'ไม่ทำการบ้าน', 'ใช้โทรศัพท์ในเวลาเรียน', 'หนีเรียน', 'พูดจาไม่สุภาพกับครู', 'ทะเลาะวิวาท'];
+
+let scoreType = 'add';
+let selectedScoreStudent = null;
+let scoreSearchTimer = null;
+
+function debounceScoreSearch() {
+  clearTimeout(scoreSearchTimer);
+  scoreSearchTimer = setTimeout(searchScoreStudents, 350);
+}
+
+function searchScoreStudents() {
+  const q = document.getElementById('scoreStudentSearch').value.trim();
+  if (!q) { document.getElementById('scoreStudentResults').innerHTML = ''; return; }
+
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.success) return;
+      const list = res.students.slice(0, 6);
+      document.getElementById('scoreStudentResults').innerHTML = list.map(st => `
+        <div class="d-flex align-items-center gap-2 p-2 rounded-3 student-row mb-1" style="border:1px solid var(--line)" onclick='pickScoreStudent(${JSON.stringify(st)})'>
+          <div class="avatar-mini" style="background:#eef1f8;color:var(--navy-800)">${(st.FirstName || '-')[0]}</div>
+          <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b><br><span class="text-secondary">${st.StudentID} · ${st.Grade}/${st.Room}</span></div>
+          <span class="fw-bold small">${st.CurrentScore}</span>
+        </div>`).join('') || '<div class="text-secondary small">ไม่พบนักเรียน</div>';
+    })
+    .withFailureHandler(() => {})
+    .apiGetStudents(getToken(), { q: q });
+}
+
+function pickScoreStudent(st) {
+  selectedScoreStudent = st;
+  const box = document.getElementById('scoreSelectedStudent');
+  box.classList.remove('d-none');
+  box.innerHTML = `
+    <div class="d-flex align-items-center gap-2">
+      <div class="avatar-mini" style="background:var(--gold-100);color:var(--navy-900)">${(st.FirstName || '-')[0]}</div>
+      <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">คะแนนคงเหลือ ${st.CurrentScore} คะแนน (${st.EducationPhase || '-'})</span></div>
+      <i class="bi bi-x-lg" style="cursor:pointer" onclick="clearScoreStudent()"></i>
+    </div>`;
+  document.getElementById('scoreStudentResults').innerHTML = '';
+  document.getElementById('scoreStudentSearch').value = '';
+  document.getElementById('scoreFormBody').classList.remove('d-none');
+}
+
+function clearScoreStudent() {
+  selectedScoreStudent = null;
+  document.getElementById('scoreSelectedStudent').classList.add('d-none');
+  document.getElementById('scoreFormBody').classList.add('d-none');
+}
+
+function setScoreType(t) {
+  scoreType = t;
+  document.getElementById('btnScoreAdd').classList.toggle('active', t === 'add');
+  document.getElementById('btnScoreDeduct').classList.toggle('active', t === 'deduct');
+  const presetSel = document.getElementById('scoreReasonPreset');
+  presetSel.innerHTML = '<option value="">-- เลือกหมวด หรือพิมพ์เอง --</option>' +
+    (t === 'add' ? REASONS_GOOD : REASONS_BAD).map(r => `<option>${r}</option>`).join('');
+  renderScorePresetGrid();
+}
+
+function applyScorePreset() {
+  const v = document.getElementById('scoreReasonPreset').value;
+  if (v) document.getElementById('scoreReasonText').value = v;
+}
+
+function renderScorePresetGrid() {
+  const list = scoreType === 'add' ? REASONS_GOOD : REASONS_BAD;
+  document.getElementById('scorePresetGrid').innerHTML = list.map(r => `
+    <span class="chip-tab" onclick="document.getElementById('scoreReasonText').value='${r}'; document.getElementById('scoreReasonPreset').value='${r}';">${r}</span>`).join('');
+}
+
+function submitScore() {
+  if (!selectedScoreStudent) {
+    Swal.fire({ icon: 'warning', title: 'กรุณาเลือกนักเรียนก่อน' });
+    return;
+  }
+  const amount = parseInt(document.getElementById('scoreAmount').value) || 0;
+  const reason = document.getElementById('scoreReasonText').value.trim();
+  if (amount <= 0) {
+    Swal.fire({ icon: 'warning', title: 'กรุณาระบุจำนวนคะแนนให้ถูกต้อง' });
+    return;
+  }
+  if (!reason) {
+    Swal.fire({ icon: 'warning', title: 'กรุณาระบุเหตุผล' });
+    return;
+  }
+
+  Swal.fire({
+    icon: 'question',
+    title: scoreType === 'add' ? `เพิ่มคะแนน ${amount} คะแนน?` : `ลดคะแนน ${amount} คะแนน?`,
+    text: `${selectedScoreStudent.Prefix || ''}${selectedScoreStudent.FirstName} ${selectedScoreStudent.LastName} — เหตุผล: ${reason}`,
+    showCancelButton: true,
+    confirmButtonText: 'ยืนยันบันทึก',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: scoreType === 'add' ? '#1f8a5b' : '#c2483a'
+  }).then(r => {
+    if (!r.isConfirmed) return;
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (!res.success) {
+          Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: res.message });
+          return;
+        }
+        let msg = `คะแนนคงเหลือ: ${res.newScore} คะแนน`;
+        if (res.alertTriggered !== null && res.alertTriggered !== undefined) {
+          msg += `\n⚠️ คะแนนลดถึงเกณฑ์ ${res.alertTriggered} คะแนน — ควรเชิญผู้ปกครอง`;
+        }
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: msg, timer: 2800, showConfirmButton: false });
+
+        document.getElementById('scoreReasonText').value = '';
+        document.getElementById('scoreReasonPreset').value = '';
+        clearScoreStudent();
+        loadScoreHistory();
+      })
+      .withFailureHandler(err => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.message }))
+      .apiAddScore(getToken(), {
+        studentId: selectedScoreStudent.StudentID,
+        type: scoreType,
+        amount: amount,
+        reason: reason
+      });
+  });
+}
+
+function loadScoreHistory(studentId) {
+  document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+  google.script.run
+    .withSuccessHandler(res => {
+      if (!res.success) {
+        document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+        return;
+      }
+      const rows = res.logs.map(l => `
+        <tr>
+          <td>${l.StudentName}<div class="text-secondary" style="font-size:.72rem">${l.StudentID}</div></td>
+          <td>${l.Type === 'add' ? '<span class="badge-soft badge-good">เพิ่มคะแนน</span>' : '<span class="badge-soft badge-bad">ลดคะแนน</span>'}</td>
+          <td class="fw-bold" style="color:${l.Type === 'add' ? 'var(--good)' : 'var(--bad)'}">${l.Type === 'add' ? '+' : '-'}${l.Amount}</td>
+          <td class="text-secondary small">${l.Reason}</td>
+          <td class="text-secondary small">${l.RecordedByName}</td>
+          <td class="text-secondary small">${toThaiDate(l.Timestamp, true)}</td>
+        </tr>`).join('');
+      document.getElementById('scoreHistoryBody').innerHTML = rows || '<tr><td colspan="6" class="text-center text-secondary py-4">ยังไม่มีประวัติการบันทึกคะแนน</td></tr>';
+    })
+    .withFailureHandler(() => {
+      document.getElementById('scoreHistoryBody').innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
+    })
+    .apiGetScoreHistory(getToken(), studentId ? { studentId: studentId, limit: 100 } : { limit: 50 });
+}
+
+/* ================= เข้าถึงหน้าเพิ่ม/ลดคะแนนจากโปรไฟล์นักเรียน ================= */
+function openScoreForStudent(studentId, prefix, firstName, lastName, grade, room, currentScore, educationPhase) {
+  switchView('score');
+  setScoreType('add');
+  pickScoreStudent({
+    StudentID: studentId, Prefix: prefix, FirstName: firstName, LastName: lastName,
+    Grade: grade, Room: room, CurrentScore: currentScore, EducationPhase: educationPhase
+  });
+}
 </script>

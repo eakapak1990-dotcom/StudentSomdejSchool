@@ -242,12 +242,74 @@
         <div id="profileContent"></div>
       </div>
 
-      <div class="view" id="view-score">
-        <div class="topbar">
-          <h2>เพิ่ม–ลดคะแนน</h2>
+     <div class="view" id="view-score">
+  <div class="topbar">
+    <div>
+      <h2>เพิ่ม–ลดคะแนนความประพฤติ</h2>
+      <div class="desc">เลือกนักเรียน ระบุประเภทและเหตุผล ระบบจะบันทึกวัน เวลา และผู้บันทึกให้อัตโนมัติ</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card-panel">
+        <div class="section-title"><span class="bar"></span> แบบฟอร์มบันทึกคะแนน</div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ค้นหานักเรียน</label>
+          <div class="search-box"><i class="bi bi-search text-secondary"></i>
+            <input id="scoreStudentSearch" placeholder="พิมพ์ชื่อหรือเลขประจำตัว..." oninput="debounceScoreSearch()">
+          </div>
+          <div id="scoreStudentResults" class="mt-2" style="max-height:180px; overflow:auto"></div>
         </div>
-        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+
+        <div id="scoreSelectedStudent" class="d-none mb-3 p-3 rounded-3" style="background:#f6f7fb"></div>
+
+        <div id="scoreFormBody" class="d-none">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">ประเภทรายการ</label>
+            <div class="d-flex gap-2">
+              <button type="button" class="chip-tab active flex-fill" id="btnScoreAdd" onclick="setScoreType('add')"><i class="bi bi-plus-circle"></i> เพิ่มคะแนน</button>
+              <button type="button" class="chip-tab flex-fill" id="btnScoreDeduct" onclick="setScoreType('deduct')"><i class="bi bi-dash-circle"></i> ลดคะแนน</button>
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-5">
+              <label class="form-label small fw-semibold">จำนวนคะแนน</label>
+              <input type="number" class="form-control" id="scoreAmount" value="5" min="1">
+            </div>
+            <div class="col-7">
+              <label class="form-label small fw-semibold">หมวดเหตุผล (ไม่บังคับ)</label>
+              <select class="form-select" id="scoreReasonPreset" onchange="applyScorePreset()">
+                <option value="">-- เลือกหมวด หรือพิมพ์เอง --</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">รายละเอียดเหตุผล <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="scoreReasonText" rows="2" placeholder="ระบุรายละเอียดเหตุผล"></textarea>
+          </div>
+          <button class="btn btn-navy px-4" onclick="submitScore()"><i class="bi bi-save2 me-1"></i> บันทึกรายการ</button>
+        </div>
       </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card-panel">
+        <div class="section-title"><span class="bar"></span> หมวดเหตุผลที่พบบ่อย</div>
+        <div id="scorePresetGrid" class="d-flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-panel mt-3">
+    <div class="section-title"><span class="bar"></span> ประวัติการบันทึกคะแนนทั้งหมด</div>
+    <table class="custom-table">
+      <thead><tr><th>นักเรียน</th><th>ประเภท</th><th>คะแนน</th><th>เหตุผล</th><th>ผู้บันทึก</th><th>วันเวลา</th></tr></thead>
+      <tbody id="scoreHistoryBody"><tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
       <div class="view" id="view-leave">
         <div class="topbar">
           <h2>คำร้องออกนอกโรงเรียน</h2>

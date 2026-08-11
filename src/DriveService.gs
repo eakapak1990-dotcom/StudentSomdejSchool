@@ -27,6 +27,27 @@ function getLetterFolder_(grade) {
 }
 
 /**
+ * คืนค่าโฟลเดอร์ปลายทางสำหรับเก็บรูปนักเรียน
+ * โครงสร้าง: Root -> ปีการศึกษา XXXX -> รูปนักเรียน -> ระดับชั้น -> ห้อง
+ * ปีที่ใช้คือปีการศึกษาปัจจุบัน ณ ตอนอัปโหลด (ปีที่ถ่ายรูปครั้งแรก ตามที่ล็อกไว้)
+ */
+function getStudentPhotoFolder_(grade, room) {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  const year = getConfigValue_('CURRENT_ACADEMIC_YEAR') || '2569';
+  const yearFolder = getOrCreateSubfolder_(root, 'ปีการศึกษา ' + year);
+  const photoFolder = getOrCreateSubfolder_(yearFolder, 'รูปนักเรียน');
+  const gradeFolder = getOrCreateSubfolder_(photoFolder, grade || 'ไม่ระบุระดับชั้น');
+  const roomFolder = getOrCreateSubfolder_(gradeFolder, room || 'ไม่ระบุห้อง');
+  return roomFolder;
+}
+
+/** โฟลเดอร์สำหรับ PDF ตัวอย่าง - ไม่ปะปนกับหนังสือที่ออกจริง */
+function getLetterPreviewFolder_() {
+  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
+  return getOrCreateSubfolder_(root, 'ตัวอย่างหนังสือเชิญ (Preview)');
+}
+
+/**
  * อ่าน/เขียนค่าตั้งค่าระบบจาก Sheet Config (key-value)
  */
 function getConfigValue_(key) {

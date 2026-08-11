@@ -1,0 +1,77 @@
+<script>
+/* ============================================================
+   PREVIEW SHIM (เฉพาะโหมดพรีวิวในเครื่อง — ไม่ใช่โค้ดจริงของระบบ)
+   ไฟล์พรีวิวสร้างจากโค้ดจริง (Index.html + CSS.html + JavaScript.html)
+   โดยแทนที่ <?!= include(...) ?> และ <?= CONFIG... ?> ตามที่ GAS ทำจริง
+   แต่ google.script.run เรียกผ่าน Google ไม่ได้ในไฟล์ท้องถิ่น
+   จึงจำลองไว้สำหรับทดสอบหน้าจอ:
+     admin / admin123  -> เข้าสู่ระบบสำเร็จ (สิทธิ์ผู้ดูแลระบบ)
+     demo  / demo123   -> เข้าสู่ระบบสำเร็จ (สิทธิ์ครูที่ปรึกษา)
+     อื่น ๆ            -> "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
+   ข้อมูลอื่น ๆ เป็นชุดว่าง — ต้องรันผ่าน GAS จริงเพื่อข้อมูลจริง
+   ============================================================ */
+(function () {
+  'use strict';
+  var DEMO_USERS = {
+    admin: { password: 'admin123', user: { userId: 'U-001', fullName: 'ผู้ดูแลระบบ', role: 'admin', roleLabel: 'ผู้ดูแลระบบ', permissions: { score: true, approveLeave: true, editDelete: true, manageSystem: true } } },
+    demo:  { password: 'demo123', user: { userId: 'U-002', fullName: 'ครูที่ปรึกษา', role: 'advisor', roleLabel: 'ครูที่ปรึกษา', permissions: { score: true, approveLeave: true, editDelete: true, manageSystem: false } } }
+  };
+  // ข้อมูลตัวอย่างสำหรับแดชบอร์ดในโหมดพรีวิว (ชุดข้อมูลจริงต้องเรียกผ่าน GAS)
+  var DEMO_DASHBOARD = {
+    success: true,
+    summary: { totalStudents: 154, atRisk: 7, lineLinked: 89, todayEvents: 2 },
+    recentTimeline: [
+      { EventType: 'add', Timestamp: new Date(Date.now() - 3600e3).toISOString(), Title: 'เพิ่มคะแนนความประพฤติ', Description: 'ช่วยงานกิจกรรมจิตอาสา (+5 คะแนน)' },
+      { EventType: 'leave', Timestamp: new Date(Date.now() - 7200e3).toISOString(), Title: 'ออกนอกโรงเรียน', Description: 'ไปพบแพทย์ กลับ 15:30 น.' },
+      { EventType: 'deduct', Timestamp: new Date(Date.now() - 86400e3).toISOString(), Title: 'ลดคะแนนความประพฤติ', Description: 'ใช้โทรศัพท์ในเวลาเรียน (-3 คะแนน)' }
+    ],
+    gradeDistribution: { labels: ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'], counts: [28, 26, 30, 24, 25, 21] }
+  };
+
+  function ShimRun() {
+    var self = this;
+    this._ok = null;
+    this._fail = null;
+    this.withSuccessHandler = function (fn) { self._ok = fn; return this; };
+    this.withFailureHandler = function (fn) { self._fail = fn; return this; };
+
+    var api = {
+      handleLoginFromClient: function (username, password) {
+        var u = DEMO_USERS[username];
+        var ok = self._ok;
+        setTimeout(function () {
+          if (ok) {
+            if (u && u.password === password) {
+              ok({ success: true, token: 'preview-' + username + '-' + Date.now(), user: u.user });
+            } else {
+              ok({ success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+            }
+          }
+        }, 500);
+      },
+      validateSessionFromClient: function () { return null; },
+      apiGetDashboardSummary: function () {
+        var ok = self._ok;
+        setTimeout(function () { if (ok) ok(DEMO_DASHBOARD); }, 200);
+      }
+    };
+
+    return new Proxy(this, {
+      get: function (t, prop) {
+        if (typeof prop === 'string' && Object.prototype.hasOwnProperty.call(api, prop)) {
+          return api[prop];
+        }
+        if (prop in t) return t[prop];
+        return function () {
+          var fail = self._fail;
+          setTimeout(function () {
+            if (fail) fail({ message: 'โหมดพรีวิว: ฟังก์ชัน ' + String(prop) + ' ยังไม่มีข้อมูลจำลอง — ต้องรันผ่าน Google Apps Script จริง' });
+          }, 100);
+        };
+      }
+    });
+  }
+
+  window.google = { script: { run: new ShimRun() } };
+})();
+</script>

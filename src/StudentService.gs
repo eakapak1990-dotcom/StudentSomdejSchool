@@ -422,3 +422,67 @@ function apiDeleteStudent(token, studentId) {
 function apiGetDashboardSummary(token) {
   return api_getDashboardSummary_(token);
 }
+/**
+ * อัปโหลดรูปนักเรียน (รับ Base64 จาก client ที่บีบอัดมาแล้ว) เข้า Drive
+ * และอัปเดต PhotoFileID ใน Sheet Students
+ */
+function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์อัปโหลดรูปภาพ' };
+    }
+
+    const student = findStudentById_(studentId);
+    if (!student) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
+
+    if (!/^(image\/jpeg|image\/png)$/.test(mimeType)) {
+      return { success: false, message: 'รองรับเฉพาะไฟล์ .jpg หรือ .png เท่านั้น' };
+    }
+
+    // ตรวจขนาดไฟล์หลังบีบอัด (ไม่ควรเกิน 1MB ตามที่กำหนด, เผื่อไว้ 1.2MB กันพลาด)
+    const sizeBytes = Math.ceil(base64Data.length * 3 / 4);
+    if (sizeBytes > 1.2 * 1024 * 1024) {
+      return { success: false, message: 'ไฟล์รูปมีขนาดใหญ่เกินไปแม้บีบอัดแล้ว กรุณาลองรูปอื่น' };
+    }
+
+    const folder = getStudentPhotoFolder_(student.Grade, student.Room);
+    const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, studentId + '.' + fileExt);
+
+    // ลบรูปเก่าถ้ามี (แทนที่รูปใหม่ ไม่ใช่ซ้อนไฟล์เก่าค้างไว้)
+    if (student.PhotoFileID) {
+      try { DriveApp.getFileById(student.PhotoFileID).setTrashed(true); } catch (e) { /* ไฟล์เก่าอาจถูกลบไปแล้ว ข้ามได้ */ }
+    }
+
+    const photoFile = folder.createFile(blob);
+    photoFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('StudentID');
+    const colPhoto = headers.indexOf('PhotoFileID');
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][colId] === studentId) {
+        sheet.getRange(i + 1, colPhoto + 1).setValue(photoFile.getId());
+        sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+        break;
+      }
+    }
+
+    logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.STUDENTS, studentId, '', 'อัปโหลดรูปนักเรียนใหม่');
+
+    return { success: true, photoFileId: photoFile.getId(), photoUrl: 'https://drive.google.com/thumbnail?id=' + photoFile.getId() + '&sz=w400' };
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+  }
+}
+
+// ============================================
+// Public Function (สำหรับ google.script.run)
+// ============================================
+function apiUploadStudentPhoto(token, studentId, base64Data, mimeType, fileExt) {
+  return api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt);
+}

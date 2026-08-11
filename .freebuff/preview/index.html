@@ -1,4 +1,1243 @@
-<script>
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    ระบบบริหารงานกลุ่มบริหารกิจการนักเรียน
+  </title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+  <style>
+  :root {
+    --navy-950: #0e1b33;
+    --navy-900: #152A52;
+    --navy-800: #1c3768;
+    --navy-700: #284a8a;
+    --gold-500: #c9a227;
+    --gold-400: #d9b94a;
+    --gold-100: #f6ecc8;
+    --bg: #f3f5f9;
+    --card: #ffffff;
+    --ink: #1a2233;
+    --ink-soft: #5b6478;
+    --line: #e4e8f0;
+    --good: #1f8a5b;
+    --bad: #c2483a;
+    --warn: #c9861f;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Sarabun', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    margin: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .display-font {
+    font-family: 'Prompt', sans-serif;
+  }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: linear-gradient(155deg, var(--gold-400), var(--gold-500));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--navy-950);
+    font-family: 'Prompt';
+    font-weight: 800;
+    font-size: 18px;
+  }
+
+  #loginScreen {
+    min-height: 100vh;
+    display: flex;
+    background: radial-gradient(circle at 15% 20%, rgba(201, 162, 39, .18), transparent 45%), radial-gradient(circle at 85% 80%, rgba(40, 74, 138, .35), transparent 50%), linear-gradient(155deg, var(--navy-950) 0%, var(--navy-900) 55%, var(--navy-800) 100%);
+  }
+
+  .login-left {
+    flex: 1.1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 5vw 6vw;
+    color: #fff;
+  }
+
+  .login-left .eyebrow {
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-size: .72rem;
+    color: var(--gold-400);
+    font-weight: 600;
+  }
+
+  .login-left h1 {
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 700;
+    line-height: 1.15;
+    margin: .6rem 0 1rem;
+  }
+
+  .login-left p {
+    color: #c7cfe3;
+    max-width: 520px;
+    font-size: 1.02rem;
+  }
+
+  .login-right {
+    flex: .85;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4vw;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .login-card .form-control {
+    background: #f6f7fb;
+    border: 1px solid var(--line);
+    padding: .65rem .9rem;
+    border-radius: 10px;
+  }
+
+  .login-card .form-control:focus {
+    border-color: var(--gold-500);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, .15);
+  }
+
+  .btn-navy {
+    background: var(--navy-900);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: .65rem 1rem;
+    font-weight: 600;
+  }
+
+  .btn-navy:hover {
+    background: var(--navy-800);
+    color: #fff;
+  }
+
+  #appShell {
+    display: none;
+  }
+
+  .sidebar {
+    width: 250px;
+    min-height: 100vh;
+    background: var(--navy-950);
+    color: #cfd6e8;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar .brand {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: 1.3rem 1.1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+  }
+
+  .sidebar .brand .name {
+    font-family: 'Prompt';
+    font-weight: 600;
+    font-size: .92rem;
+    color: #fff;
+  }
+
+  .sidebar .brand .sub {
+    font-size: .68rem;
+    color: #8c96b3;
+  }
+
+  .nav-section-title {
+    font-size: .66rem;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: #5f6a8a;
+    padding: 1rem 1.1rem .35rem;
+  }
+
+  .nav-link-custom {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .62rem 1.1rem;
+    color: #c3cbe0;
+    font-size: .88rem;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .nav-link-custom:hover {
+    background: rgba(255, 255, 255, .05);
+    color: #fff;
+  }
+
+  .nav-link-custom.active {
+    background: rgba(201, 162, 39, .12);
+    color: #fff;
+    border-left-color: var(--gold-500);
+  }
+
+  .sidebar .user-box {
+    margin-top: auto;
+    padding: 1rem 1.1rem;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+
+  .avatar-mini {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--gold-500);
+    color: var(--navy-950);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Prompt';
+    font-weight: 700;
+    font-size: .85rem;
+    flex-shrink: 0;
+  }
+
+  .main-area {
+    margin-left: 250px;
+    padding: 1.6rem 2rem 3rem;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.4rem;
+    flex-wrap: wrap;
+    gap: .7rem;
+  }
+
+  .topbar h2 {
+    font-size: 1.35rem;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .topbar .desc {
+    color: var(--ink-soft);
+    font-size: .85rem;
+    margin-top: .15rem;
+  }
+
+  .card-panel {
+    background: var(--card);
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    padding: 1.3rem;
+  }
+
+  .view {
+    display: none;
+  }
+
+  .view.active {
+    display: block;
+    animation: fadein .25s ease;
+  }
+
+  @keyframes fadein {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .mobile-toggle {
+    display: none;
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 992px) {
+    #loginScreen {
+      flex-direction: column;
+    }
+
+    .login-left {
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .login-left p {
+      margin: 0 auto;
+    }
+
+    .login-right {
+      padding: 2rem;
+    }
+
+    .sidebar {
+      transform: translateX(-100%);
+      transition: .25s;
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+    }
+
+    .main-area {
+      margin-left: 0;
+    }
+
+    .mobile-toggle {
+      display: inline-flex;
+    }
+  }
+
+  .search-box {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: .55rem .9rem;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+
+  .search-box input {
+    border: none;
+    outline: none;
+    flex: 1;
+    background: transparent;
+    font-size: .9rem;
+  }
+
+  .badge-soft {
+    padding: .28rem .6rem;
+    border-radius: 20px;
+    font-size: .72rem;
+    font-weight: 600;
+  }
+
+  .badge-good {
+    background: #e5f5ec;
+    color: var(--good);
+  }
+
+  .badge-bad {
+    background: #fbe9e7;
+    color: var(--bad);
+  }
+
+  .badge-warn {
+    background: #fbf1de;
+    color: var(--warn);
+  }
+
+  .badge-navy {
+    background: #e8ecf7;
+    color: var(--navy-800);
+  }
+
+  table.custom-table {
+    width: 100%;
+    font-size: .87rem;
+  }
+
+  table.custom-table thead th {
+    color: var(--ink-soft);
+    font-weight: 600;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    border-bottom: 1px solid var(--line);
+    padding: .6rem .5rem;
+  }
+
+  table.custom-table tbody td {
+    padding: .6rem .5rem;
+    border-bottom: 1px solid #f0f1f5;
+    vertical-align: middle;
+  }
+
+  table.custom-table tbody tr:hover {
+    background: #f8f9fc;
+  }
+
+  .student-row {
+    cursor: pointer;
+  }
+
+  .section-title {
+    font-family: 'Prompt';
+    font-weight: 600;
+    font-size: 1.02rem;
+    margin-bottom: .9rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+
+  .section-title .bar {
+    width: 4px;
+    height: 16px;
+    background: var(--gold-500);
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .score-pill {
+    font-family: 'Prompt';
+    font-weight: 700;
+    font-size: 2.4rem;
+    color: var(--navy-900);
+  }
+
+  .avatar-lg {
+    width: 88px;
+    height: 88px;
+    border-radius: 16px;
+    background: linear-gradient(155deg, var(--navy-800), var(--navy-950));
+    color: var(--gold-400);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Prompt';
+    font-weight: 700;
+    font-size: 1.9rem;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 2.2rem;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: linear-gradient(var(--navy-900), var(--line));
+  }
+
+  .tl-item {
+    position: relative;
+    padding-bottom: 1.4rem;
+  }
+
+  .tl-item:last-child {
+    padding-bottom: 0;
+  }
+
+  .tl-dot {
+    position: absolute;
+    left: -2.2rem;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .68rem;
+    color: #fff;
+    border: 3px solid var(--bg);
+  }
+
+  .tl-time {
+    font-size: .72rem;
+    color: var(--ink-soft);
+  }
+
+  .tl-title {
+    font-weight: 600;
+    font-size: .9rem;
+  }
+
+  .tl-desc {
+    font-size: .82rem;
+    color: var(--ink-soft);
+  }
+
+  .btn-gold {
+    background: var(--gold-500);
+    border: none;
+    color: var(--navy-950);
+    font-weight: 600;
+  }
+
+  .btn-gold:hover {
+    background: var(--gold-400);
+    color: var(--navy-950);
+  }
+
+  .chip-tab {
+    padding: .4rem .9rem;
+    border-radius: 9px;
+    font-size: .83rem;
+    border: 1px solid var(--line);
+    background: #fff;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  .chip-tab.active {
+    background: var(--navy-900);
+    color: #fff;
+    border-color: var(--navy-900);
+  }
+
+  .progress-thin {
+    height: 6px;
+    border-radius: 4px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 1.1rem 1.3rem;
+    border: 1px solid var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card .icn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  .stat-card .val {
+    font-family: 'Prompt';
+    font-size: 1.7rem;
+    font-weight: 700;
+    margin: .5rem 0 0;
+  }
+
+  .stat-card .lbl {
+    color: var(--ink-soft);
+    font-size: .8rem;
+  }
+  canvas { max-width: 100%; }
+.action-btn-group { display: flex; gap: .35rem; justify-content: flex-end; }
+.action-btn-group .btn { padding: .25rem .55rem; font-size: .85rem; }
+</style>
+</head>
+
+<body>
+
+  <!-- ============ LOGIN SCREEN ============ -->
+  <div id="loginScreen">
+    <div class="login-left">
+      <div class="eyebrow">ระบบสารสนเทศโรงเรียน</div>
+      <h1>กลุ่มบริหาร<br>กิจการนักเรียน</h1>
+      <p>บริหารคะแนนความประพฤติ ติดตามพฤติกรรม ออกเอกสาร และแจ้งเตือนผู้ปกครองผ่าน LINE ในที่เดียว</p>
+    </div>
+    <div class="login-right">
+      <div class="login-card">
+        <div class="d-flex align-items-center gap-2 mb-4">
+          <div class="brand-mark">SA</div>
+          <div>
+            <div class="fw-bold" style="font-family:'Prompt'">เข้าสู่ระบบ</div>
+            <div class="text-secondary" style="font-size:.78rem">
+              ระบบบริหารงานกลุ่มบริหารกิจการนักเรียน
+            </div>
+          </div>
+        </div>
+
+        <div id="loginError" class="alert alert-danger py-2 small d-none"></div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ชื่อผู้ใช้</label>
+          <input type="text" class="form-control" id="username" placeholder="เช่น admin">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่าน</label>
+          <input type="password" class="form-control" id="password" placeholder="รหัสผ่าน">
+        </div>
+        <button class="btn btn-navy w-100 py-2" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+        <div class="text-center text-secondary mt-3" style="font-size:.75rem">v
+          1.0.0
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="appShell">
+    <div class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">SA</div>
+        <div>
+          <div class="name">กิจการนักเรียน</div>
+          <div class="sub">Student Affairs System</div>
+        </div>
+      </div>
+
+      <div class="nav-section-title">ภาพรวม</div>
+      <a class="nav-link-custom active" data-view="dashboard"><i class="bi bi-grid-1x2-fill"></i> แดชบอร์ด</a>
+
+      <div class="nav-section-title">งานหลัก</div>
+      <a class="nav-link-custom" data-view="students" data-perm="score"><i class="bi bi-people-fill"></i>
+        ฐานข้อมูลนักเรียน</a>
+      <a class="nav-link-custom" data-view="score" data-perm="score"><i class="bi bi-award-fill"></i>
+        เพิ่ม–ลดคะแนน</a>
+      <a class="nav-link-custom" data-view="leave" data-perm="approveLeave"><i class="bi bi-door-open-fill"></i>
+        คำร้องออกนอกโรงเรียน</a>
+      <a class="nav-link-custom" data-view="letters" data-perm="editDelete"><i class="bi bi-envelope-paper-fill"></i>
+        หนังสือเชิญผู้ปกครอง</a>
+      <a class="nav-link-custom" data-view="reports"><i class="bi bi-bar-chart-line-fill"></i>
+        รายงาน & สถิติ</a>
+
+      <div class="nav-section-title">ระบบ</div>
+      <a class="nav-link-custom" data-view="line" data-perm="editDelete"><i class="bi bi-line"></i> การแจ้งเตือน
+        LINE</a>
+      <a class="nav-link-custom" data-view="users" data-perm="manageSystem"><i class="bi bi-shield-lock-fill"></i>
+        ผู้ใช้งาน & สิทธิ์</a>
+
+      <div class="user-box">
+  <div class="avatar-mini" id="sbAvatar">-</div>
+  <div style="min-width:0">
+    <div class="text-white small fw-semibold text-truncate" id="sbName">-</div>
+    <div class="text-truncate" style="font-size:.7rem;color:#8c96b3" id="sbRole">-</div>
+  </div>
+  <i class="bi bi-key text-white-50 me-2" style="cursor:pointer" onclick="openChangePasswordModal()" title="เปลี่ยนรหัสผ่าน"></i>
+  <i class="bi bi-box-arrow-right text-white-50" style="cursor:pointer" onclick="doLogout()"
+    title="ออกจากระบบ"></i>
+</div>
+    </div>
+
+    <div class="main-area">
+      <button class="btn btn-sm btn-navy mobile-toggle mb-3"
+        onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="bi bi-list"></i> เมนู</button>
+
+      <div class="view active" id="view-dashboard">
+        <div class="topbar">
+          <div>
+            <h2>ภาพรวมวันนี้</h2>
+            <div class="desc">สรุปสถานการณ์ความประพฤตินักเรียนทั้งโรงเรียน</div>
+          </div>
+        </div>
+        <div class="row g-3 mb-4" id="dashboardStats">
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#e8ecf7;color:var(--navy-800)"><i class="bi bi-people-fill"></i></div>
+                <div class="lbl">นักเรียนทั้งหมด</div>
+              </div>
+              <div class="val" id="statTotal">–</div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#fbe9e7;color:var(--bad)"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                <div class="lbl">กลุ่มเสี่ยง (&lt;70 คะแนน)</div>
+              </div>
+              <div class="val" id="statRisk" style="color:var(--bad)">–</div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#e5f5ec;color:var(--good)"><i class="bi bi-line"></i></div>
+                <div class="lbl">เชื่อม LINE แล้ว</div>
+              </div>
+              <div class="val" id="statLine" style="color:var(--good)">–</div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="stat-card">
+              <div class="d-flex align-items-center gap-2">
+                <div class="icn" style="background:#fbf1de;color:var(--warn)"><i class="bi bi-calendar-event-fill"></i></div>
+                <div class="lbl">เหตุการณ์วันนี้</div>
+              </div>
+              <div class="val" id="statToday">–</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="card-panel">
+              <div class="section-title"><span class="bar"></span> เหตุการณ์ล่าสุด</div>
+              <div id="dashboardTimeline"><div class="text-center text-secondary py-3">กำลังโหลด...</div></div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="card-panel">
+              <div class="section-title"><span class="bar"></span> สถิตินักเรียนแยกตามระดับชั้น</div>
+              <canvas id="chartGradeDistribution" height="220"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="view" id="view-students">
+        <div class="topbar">
+          <div>
+            <h2>ฐานข้อมูลนักเรียน</h2>
+            <div class="desc">ค้นหาด้วยเลขประจำตัว เลขบัตรประชาชน ชื่อ–นามสกุล ระดับชั้น หรือห้องเรียน</div>
+          </div>
+          <button class="btn btn-gold btn-sm px-3" onclick="openAddStudentModal()"><i class="bi bi-plus-lg"></i>
+            เพิ่มนักเรียน</button>
+        </div>
+
+        <div class="card-panel mb-3">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+              <div class="search-box"><i class="bi bi-search text-secondary"></i>
+                <input id="studentSearch" placeholder="พิมพ์ชื่อ, เลขประจำตัว, เลขบัตรประชาชน..."
+                  oninput="debounceSearchStudents()">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <select class="form-select" id="filterGrade" onchange="loadStudents()">
+                <option value="">ทุกระดับชั้น</option>
+                <option value="ม.1">ม.1</option>
+                <option value="ม.2">ม.2</option>
+                <option value="ม.3">ม.3</option>
+                <option value="ม.4">ม.4</option>
+                <option value="ม.5">ม.5</option>
+                <option value="ม.6">ม.6</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <input class="form-control" id="filterRoom" placeholder="ห้อง เช่น 1/1" onchange="loadStudents()">
+            </div>
+            <div class="col-md-1 text-end">
+              <span class="badge-soft badge-navy" id="studentCount">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <div id="studentTableWrap">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>ชื่อ–นามสกุล</th>
+                  <th>เลขประจำตัว</th>
+                  <th>ชั้น/ห้อง</th>
+                  <th>คะแนนคงเหลือ</th>
+                  <th>สถานะ LINE</th>
+                  <th class="text-end">การดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody id="studentTableBody">
+                <tr>
+                  <td colspan="7" class="text-center text-secondary py-4">กำลังโหลด...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="view" id="view-profile">
+        <div class="topbar">
+          <div>
+            <button class="btn btn-sm btn-outline-secondary mb-2" onclick="switchView('students')"><i
+                class="bi bi-arrow-left"></i> กลับไปฐานข้อมูล</button>
+          </div>
+          <div id="profileActions"></div>
+        </div>
+        <div id="profileContent"></div>
+      </div>
+
+     <div class="view" id="view-score">
+  <div class="topbar">
+    <div>
+      <h2>เพิ่ม–ลดคะแนนความประพฤติ</h2>
+      <div class="desc">เลือกนักเรียน ระบุประเภทและเหตุผล ระบบจะบันทึกวัน เวลา และผู้บันทึกให้อัตโนมัติ</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card-panel">
+        <div class="section-title"><span class="bar"></span> แบบฟอร์มบันทึกคะแนน</div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ค้นหานักเรียน</label>
+          <div class="search-box"><i class="bi bi-search text-secondary"></i>
+            <input id="scoreStudentSearch" placeholder="พิมพ์ชื่อหรือเลขประจำตัว..." oninput="debounceScoreSearch()">
+          </div>
+          <div id="scoreStudentResults" class="mt-2" style="max-height:180px; overflow:auto"></div>
+        </div>
+
+        <div id="scoreSelectedStudent" class="d-none mb-3 p-3 rounded-3" style="background:#f6f7fb"></div>
+
+        <div id="scoreFormBody" class="d-none">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">ประเภทรายการ</label>
+            <div class="d-flex gap-2">
+              <button type="button" class="chip-tab active flex-fill" id="btnScoreAdd" onclick="setScoreType('add')"><i class="bi bi-plus-circle"></i> เพิ่มคะแนน</button>
+              <button type="button" class="chip-tab flex-fill" id="btnScoreDeduct" onclick="setScoreType('deduct')"><i class="bi bi-dash-circle"></i> ลดคะแนน</button>
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-5">
+              <label class="form-label small fw-semibold">จำนวนคะแนน</label>
+              <input type="number" class="form-control" id="scoreAmount" value="5" min="1">
+            </div>
+            <div class="col-7">
+              <label class="form-label small fw-semibold">หมวดเหตุผล (ไม่บังคับ)</label>
+              <select class="form-select" id="scoreReasonPreset" onchange="applyScorePreset()">
+                <option value="">-- เลือกหมวด หรือพิมพ์เอง --</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">รายละเอียดเหตุผล <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="scoreReasonText" rows="2" placeholder="ระบุรายละเอียดเหตุผล"></textarea>
+          </div>
+          <button class="btn btn-navy px-4" onclick="submitScore()"><i class="bi bi-save2 me-1"></i> บันทึกรายการ</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card-panel">
+        <div class="section-title"><span class="bar"></span> หมวดเหตุผลที่พบบ่อย</div>
+        <div id="scorePresetGrid" class="d-flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-panel mt-3">
+    <div class="section-title"><span class="bar"></span> ประวัติการบันทึกคะแนนทั้งหมด</div>
+    <table class="custom-table">
+      <thead><tr><th>นักเรียน</th><th>ประเภท</th><th>คะแนน</th><th>เหตุผล</th><th>ผู้บันทึก</th><th>วันเวลา</th></tr></thead>
+      <tbody id="scoreHistoryBody"><tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+      <div class="view" id="view-leave">
+  <div class="topbar">
+    <div>
+      <h2>คำร้องขออนุญาตออกนอกโรงเรียน</h2>
+      <div class="desc">บันทึกคำร้องแทนนักเรียน และดำเนินการอนุมัติ/ไม่อนุมัติ</div>
+    </div>
+    <button class="btn btn-gold btn-sm px-3" onclick="openAddLeaveModal()"><i class="bi bi-plus-lg"></i> สร้างคำร้อง</button>
+  </div>
+
+ <div class="d-flex gap-2 mb-3" id="leaveTabs">
+  <span class="chip-tab active" data-status="pending" onclick="switchLeaveTab('pending')">รอดำเนินการ <span class="badge-soft badge-warn ms-1" id="leavePendingBadge">0</span></span>
+  <span class="chip-tab" data-status="approved" onclick="switchLeaveTab('approved')">อนุมัติแล้ว <span class="badge-soft badge-good ms-1" id="leaveApprovedBadge">0</span></span>
+  <span class="chip-tab" data-status="rejected" onclick="switchLeaveTab('rejected')">ไม่อนุมัติ <span class="badge-soft badge-bad ms-1" id="leaveRejectedBadge">0</span></span>
+  <span class="chip-tab" data-status="all" onclick="switchLeaveTab('all')">ทั้งหมด <span class="badge-soft badge-navy ms-1" id="leaveAllBadge">0</span></span>
+</div>
+
+  <div class="card-panel">
+    <table class="custom-table">
+      <thead><tr><th>นักเรียน</th><th>เหตุผล</th><th>เวลาออก–กลับ</th><th>สถานะ</th><th class="text-end">การดำเนินการ</th></tr></thead>
+      <tbody id="leaveTableBody"><tr><td colspan="5" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+      <div class="view" id="view-letters">
+  <div class="topbar">
+    <div>
+      <h2>หนังสือเชิญผู้ปกครอง</h2>
+      <div class="desc">สร้างร่างหนังสือเชิญ ยืนยันออกเอกสาร และดาวน์โหลด PDF</div>
+    </div>
+    <button class="btn btn-gold btn-sm px-3" onclick="openAddLetterModal()"><i class="bi bi-plus-lg"></i> สร้างหนังสือเชิญ</button>
+  </div>
+
+  <div class="d-flex gap-2 mb-3" id="letterTabs">
+    <span class="chip-tab active" data-status="draft" onclick="switchLetterTab('draft')">ร่าง (รอยืนยัน) <span class="badge-soft badge-warn ms-1" id="letterDraftBadge">0</span></span>
+    <span class="chip-tab" data-status="confirmed" onclick="switchLetterTab('confirmed')">ออกเอกสารแล้ว <span class="badge-soft badge-good ms-1" id="letterConfirmedBadge">0</span></span>
+    <span class="chip-tab" data-status="all" onclick="switchLetterTab('all')">ทั้งหมด <span class="badge-soft badge-navy ms-1" id="letterAllBadge">0</span></span>
+  </div>
+
+  <div class="card-panel">
+    <table class="custom-table">
+      <thead><tr><th>เลขที่หนังสือ</th><th>นักเรียน</th><th>เรื่อง</th><th>ลายเซ็น</th><th>สถานะ</th><th class="text-end">การดำเนินการ</th></tr></thead>
+      <tbody id="letterTableBody"><tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+      <div class="view" id="view-reports">
+        <div class="topbar">
+          <h2>รายงาน & สถิติ</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-line">
+        <div class="topbar">
+          <h2>การแจ้งเตือน LINE</h2>
+        </div>
+        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+      </div>
+      <div class="view" id="view-users">
+  <div class="topbar">
+    <div>
+      <h2>ผู้ใช้งาน & สิทธิ์</h2>
+      <div class="desc">จัดการบัญชีผู้ใช้งานและกำหนดบทบาทในระบบ</div>
+    </div>
+    <button class="btn btn-gold btn-sm px-3" onclick="openAddUserModal()"><i class="bi bi-person-plus me-1"></i> เพิ่มผู้ใช้งาน</button>
+  </div>
+  <div class="card-panel">
+    <table class="custom-table">
+      <thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อ-นามสกุล</th><th>บทบาท</th><th>สถานะ</th><th>เข้าใช้งานล่าสุด</th><th class="text-end">การดำเนินการ</th></tr></thead>
+      <tbody id="userTableBody"><tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: เพิ่ม/แก้ไขนักเรียน ============ -->
+  <div class="modal fade" id="studentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="studentModalTitle">เพิ่มนักเรียนใหม่</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="sm_studentId">
+
+          <div class="alert alert-secondary py-2 small">
+            <i class="bi bi-info-circle"></i> ช่องที่มีเครื่องหมาย <span class="text-danger fw-bold">*</span> จำเป็นต้องกรอก
+          </div>
+          <div class="section-title"><span class="bar"></span> รูปถ่ายนักเรียน</div>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div id="sm_photoPreview" class="avatar-lg" style="font-size:1.2rem;overflow:hidden;">-</div>
+            <div class="flex-fill">
+              <input type="file" class="form-control" id="sm_photoInput" accept="image/jpeg,image/png" onchange="handlePhotoSelect(event)">
+              <div class="text-secondary small mt-1">รองรับ .jpg, .png ขนาดไม่เกิน 5MB (ระบบจะบีบอัดให้อัตโนมัติ)</div>
+              <div id="sm_photoStatus" class="small mt-1"></div>
+            </div>
+          </div>
+          <div class="section-title"><span class="bar"></span> ข้อมูลส่วนตัว</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-3"><label class="form-label small">คำนำหน้า <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_prefix" required>
+                <option value="">-- เลือก --</option>
+                <option>เด็กชาย</option>
+                <option>เด็กหญิง</option>
+                <option>นาย</option>
+                <option>นางสาว</option>
+              </select>
+            </div>
+            <div class="col-md-4"><label class="form-label small">ชื่อ <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_firstName" required></div>
+            <div class="col-md-5"><label class="form-label small">นามสกุล <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_lastName" required></div>
+
+            <div class="col-md-3"><label class="form-label small">เพศ <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_gender" required>
+                <option value="">-- เลือก --</option>
+                <option>ชาย</option>
+                <option>หญิง</option>
+              </select>
+            </div>
+            <div class="col-md-3"><label class="form-label small">ระดับชั้น <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_grade" onchange="updateEducationPhaseLabel()" required>
+                <option value="ม.1">ม.1</option>
+                <option value="ม.2">ม.2</option>
+                <option value="ม.3">ม.3</option>
+                <option value="ม.4">ม.4</option>
+                <option value="ม.5">ม.5</option>
+                <option value="ม.6">ม.6</option>
+              </select>
+            </div>
+            <div class="col-md-3"><label class="form-label small">ห้อง <span class="text-danger">*</span></label><input class="form-control" id="sm_room"
+                placeholder="เช่น 1/1" required></div>
+            <div class="col-md-3"><label class="form-label small">เลขที่ <span class="text-danger">*</span></label><input class="form-control"
+                type="number" id="sm_no" required></div>
+
+            <div class="col-md-4"><label class="form-label small">เลขประจำตัวประชาชน <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_citizenId" maxlength="13" required></div>
+            <div class="col-md-4"><label class="form-label small">วันเดือนปีเกิด <span class="text-danger">*</span></label><input class="form-control"
+                type="date" id="sm_dob" required></div>
+            <div class="col-md-4"><label class="form-label small">หมู่เลือด</label><input class="form-control"
+                id="sm_bloodType" placeholder="เช่น O, A, B, AB"></div>
+
+            <div class="col-md-4"><label class="form-label small">น้ำหนัก (กก.)</label><input class="form-control"
+                type="number" id="sm_weight"></div>
+            <div class="col-md-4"><label class="form-label small">ส่วนสูง (ซม.)</label><input class="form-control"
+                type="number" id="sm_height"></div>
+            <div class="col-md-4"><label class="form-label small">สัญชาติ</label><input class="form-control"
+                id="sm_nationality" value="ไทย"></div>
+
+            <div class="col-md-4"><label class="form-label small">ศาสนา</label><input class="form-control"
+                id="sm_religion" value="พุทธ"></div>
+            <div class="col-md-4"><label class="form-label small">เชื้อชาติ</label><input class="form-control"
+                id="sm_ethnicity" value="ไทย"></div>
+            <div class="col-md-4"><label class="form-label small">รอบการศึกษา</label><input class="form-control"
+                id="sm_phaseLabel" disabled value="ม.ต้น"></div>
+          </div>
+
+          <div class="section-title"><span class="bar"></span> ที่อยู่</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-2"><label class="form-label small">บ้านเลขที่</label><input class="form-control"
+                id="sm_addressNo"></div>
+            <div class="col-md-2"><label class="form-label small">หมู่</label><input class="form-control"
+                id="sm_addressMoo"></div>
+            <div class="col-md-3"><label class="form-label small">ถนน</label><input class="form-control"
+                id="sm_addressRoad"></div>
+            <div class="col-md-3"><label class="form-label small">ตำบล</label><input class="form-control"
+                id="sm_addressTambon"></div>
+            <div class="col-md-2"><label class="form-label small">อำเภอ</label><input class="form-control"
+                id="sm_addressAmphoe"></div>
+            <div class="col-md-4"><label class="form-label small">จังหวัด</label><input class="form-control"
+                id="sm_addressProvince"></div>
+          </div>
+
+          <div class="section-title"><span class="bar"></span> ข้อมูลผู้ปกครอง</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-4"><label class="form-label small">ชื่อ-นามสกุลผู้ปกครอง <span class="text-danger">*</span></label><input
+                class="form-control" id="sm_parentName" required></div>
+            <div class="col-md-4"><label class="form-label small">ความเกี่ยวข้อง <span class="text-danger">*</span></label>
+              <select class="form-select" id="sm_parentRelation" required>
+                <option>บิดา</option>
+                <option>มารดา</option>
+                <option>ผู้ปกครอง</option>
+              </select>
+            </div>
+            <div class="col-md-4"><label class="form-label small">อาชีพผู้ปกครอง</label><input class="form-control"
+                id="sm_parentJob" placeholder="เช่น รับราชการ, ค้าขาย"></div>
+
+            <div class="col-md-4"><label class="form-label small">เบอร์โทรศัพท์ <span class="text-danger">*</span></label><input class="form-control"
+                id="sm_parentPhone" required></div>
+
+            <div class="col-md-2"><label class="form-label small">ชื่อบิดา</label><input class="form-control"
+                id="sm_fatherName"></div>
+            <div class="col-md-2"><label class="form-label small">อาชีพบิดา</label><input class="form-control"
+                id="sm_fatherJob"></div>
+            <div class="col-md-2"><label class="form-label small">ชื่อมารดา</label><input class="form-control"
+                id="sm_motherName"></div>
+            <div class="col-md-2"><label class="form-label small">อาชีพมารดา</label><input class="form-control"
+                id="sm_motherJob"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+          <button class="btn btn-navy" onclick="saveStudent()"><i class="bi bi-save2 me-1"></i> บันทึกข้อมูล</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ============ MODAL: สร้างคำร้องออกนอกโรงเรียน ============ -->
+<div class="modal fade" id="leaveModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">สร้างคำร้องขออนุญาตออกนอกโรงเรียน</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ค้นหานักเรียน <span class="text-danger">*</span></label>
+          <div class="search-box"><i class="bi bi-search text-secondary"></i>
+            <input id="leaveStudentSearch" placeholder="พิมพ์ชื่อหรือเลขประจำตัว..." oninput="debounceLeaveSearch()">
+          </div>
+          <div id="leaveStudentResults" class="mt-2" style="max-height:160px; overflow:auto"></div>
+        </div>
+        <div id="leaveSelectedStudent" class="d-none mb-3 p-3 rounded-3" style="background:#f6f7fb"></div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">เหตุผล <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="lm_reason" rows="2" placeholder="เช่น ไปพบแพทย์ ผู้ปกครองมารับกลับบ้าน"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลาที่ขอออก <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="lm_outTime">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลาที่ขอกลับ <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="lm_inTime">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitLeaveRequest()"><i class="bi bi-save2 me-1"></i> บันทึกคำร้อง</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ============ MODAL: สร้างหนังสือเชิญผู้ปกครอง ============ -->
+<div class="modal fade" id="letterModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">สร้างหนังสือเชิญผู้ปกครอง</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ค้นหานักเรียน <span class="text-danger">*</span></label>
+          <div class="search-box"><i class="bi bi-search text-secondary"></i>
+            <input id="letterStudentSearch" placeholder="พิมพ์ชื่อหรือเลขประจำตัว..." oninput="debounceLetterSearch()">
+          </div>
+          <div id="letterStudentResults" class="mt-2" style="max-height:160px; overflow:auto"></div>
+        </div>
+        <div id="letterSelectedStudent" class="d-none mb-3 p-3 rounded-3" style="background:#f6f7fb"></div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">เลขลำดับหนังสือ <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <span class="input-group-text">ศธ 04293.43/</span>
+            <input class="form-control" id="lt_letterNoSuffix" placeholder="ว116" maxlength="20">
+          </div>
+          <div class="text-secondary small mt-1">กรอกเฉพาะเลขลำดับ เช่น ว116</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รายละเอียดปัญหา <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="lt_detail" rows="2" placeholder="เช่น สูบบุหรี่ไฟฟ้าลงสื่อออนไลน์โดยใส่ชุดสถานศึกษา"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">วันที่นัดหมาย <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="lt_appointmentDate">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลานัดหมาย <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="lt_appointmentTime">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รูปแบบลายเซ็น <span class="text-danger">*</span></label>
+          <select class="form-select" id="lt_signatureType">
+            <option>ลายเซ็นสแกน</option>
+            <option>เซ็นหลังพิมพ์</option>
+          </select>
+          <div class="text-secondary small mt-1"><i class="bi bi-info-circle"></i> ลายเซ็นสแกนจริงจะรองรับในเฟสถัดไป ตอนนี้จะแสดง placeholder</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-outline-primary" onclick="previewLetter()"><i class="bi bi-eye me-1"></i>พรีวิว PDF</button>
+        <button class="btn btn-navy" onclick="submitLetterDraft()"><i class="bi bi-save2 me-1"></i> สร้างร่างหนังสือ</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ============ MODAL: เพิ่มผู้ใช้งาน ============ -->
+<div class="modal fade" id="userModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">เพิ่มผู้ใช้งานใหม่</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ชื่อผู้ใช้ (Username) <span class="text-danger">*</span></label>
+          <input class="form-control" id="um_username" placeholder="เช่น somchai.j">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ชื่อ-นามสกุล <span class="text-danger">*</span></label>
+          <input class="form-control" id="um_fullName" placeholder="เช่น สมชาย ใจดี">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">บทบาท <span class="text-danger">*</span></label>
+          <select class="form-select" id="um_role">
+            <option value="admin">ผู้ดูแลระบบ</option>
+            <option value="deputy">รองผู้อำนวยการ/ผู้บริหาร</option>
+            <option value="advisor" selected>ครูที่ปรึกษา</option>
+            <option value="discipline">ครูฝ่ายปกครอง</option>
+            <option value="patrol">คณะกรรมการสารวัตรนักเรียน</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่านเริ่มต้น <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="um_password" placeholder="อย่างน้อย 8 ตัวอักษร">
+          <div class="text-secondary small mt-1">แนะนำให้ผู้ใช้เปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitAddUser()"><i class="bi bi-save2 me-1"></i> เพิ่มผู้ใช้งาน</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: เปลี่ยนรหัสผ่านของตนเอง ============ -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">เปลี่ยนรหัสผ่าน</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่านเดิม <span class="text-danger">*</span></label>
+          <input type="password" class="form-control" id="cp_oldPassword">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">รหัสผ่านใหม่ <span class="text-danger">*</span></label>
+          <input type="password" class="form-control" id="cp_newPassword" placeholder="อย่างน้อย 8 ตัวอักษร">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">ยืนยันรหัสผ่านใหม่ <span class="text-danger">*</span></label>
+          <input type="password" class="form-control" id="cp_confirmPassword">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+        <button class="btn btn-navy" onclick="submitChangePassword()"><i class="bi bi-save2 me-1"></i> บันทึกรหัสผ่านใหม่</button>
+      </div>
+    </div>
+  </div>
+</div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
   let currentUser = null;
 
   /* ================= THAI DATE UTILITY (พ.ศ. จริง) ================= */
@@ -218,7 +1457,7 @@
       `;
       return `
       <tr class="student-row" onclick="openProfile('${st.StudentID}')">
-        
+        <td>${renderAvatarHtml(st.PhotoFileID, (st.FirstName || '-')[0], 'avatar-mini')}</td>
         <td>${fullName}<div class="text-secondary" style="font-size:.72rem">${st.StudentID}</div></td>
         <td>${st.StudentID}</td>
         <td>${st.Grade || '-'} / ${st.Room || '-'} เลขที่ ${st.No || '-'}</td>
@@ -323,8 +1562,7 @@
     }
 
     const editId = document.getElementById('sm_studentId').value;
-
-    if (editId) {
+if (editId) {
       google.script.run
         .withSuccessHandler(res => {
           if (res.success) {
@@ -398,7 +1636,7 @@
   <div class="row g-3">
     <div class="col-lg-4">
       <div class="card-panel text-center">
-        <div class="avatar-lg mx-auto mb-3">${(st.FirstName || '-')[0]}${(st.LastName || '-')[0]}</div>
+       <div class="mx-auto mb-3" style="width:88px">${renderAvatarHtml(st.PhotoFileID, (st.FirstName || '-')[0] + (st.LastName || '-')[0], 'avatar-lg')}</div>
         <h4 class="mb-0">${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</h4>
         <div class="text-secondary small mb-3">${st.StudentID} · ${st.Grade}/${st.Room} เลขที่ ${st.No}</div>
         <div class="score-pill mb-0" style="color:${st.CurrentScore < 70 ? 'var(--bad)' : 'var(--navy-900)'}">${st.CurrentScore}</div>
@@ -467,7 +1705,7 @@
         const st = res.student;
         const p = res.parent || {};
 
-   document.getElementById('studentModalTitle').textContent = 'แก้ไขข้อมูลนักเรียน';
+     document.getElementById('studentModalTitle').textContent = 'แก้ไขข้อมูลนักเรียน';
         document.getElementById('sm_studentId').value = studentId;
         document.getElementById('sm_photoInput').value = '';
         document.getElementById('sm_photoStatus').textContent = '';
@@ -1108,7 +2346,7 @@ function previewLetter() {
           if (l.Status === 'draft' && canManage) {
             actionBtn = `<button class="btn btn-sm btn-navy" onclick="confirmLetter('${l.LetterID}', '${encodeURIComponent(l.LetterNo || '')}')"><i class="bi bi-check-lg me-1"></i>ยืนยันออกเอกสาร</button>`;
           } else if (l.Status === 'confirmed' && l.PdfFileID) {
-            actionBtn = `<a class="btn btn-sm btn-outline-secondary" href="${getDriveFileUrl_(l.PdfFileID)}" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>เปิด PDF</a>`;
+            actionBtn = `<a class="btn btn-sm btn-outline-secondary" href="https://drive.google.com/file/d/${l.PdfFileID}/view" target="_blank"><i class="bi bi-file-earmark-pdf me-1"></i>เปิด PDF</a>`;
           }
           return `
           <tr>
@@ -1468,18 +2706,91 @@ function uploadPendingPhoto(studentId, onDone) {
 function renderAvatarHtml(photoFileId, initial, sizeClass) {
   sizeClass = sizeClass || 'avatar-mini';
   if (photoFileId) {
-    const url = getDriveThumbnailUrl_(photoFileId);
+    const url = 'https://drive.google.com/thumbnail?id=' + photoFileId + '&sz=w200';
     return `<div class="${sizeClass}" style="overflow:hidden;padding:0;"><img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${initial}'; this.parentElement.style.background='#eef1f8'; this.parentElement.style.color='var(--navy-800)';"></div>`;
   }
   return `<div class="${sizeClass}" style="background:#eef1f8;color:var(--navy-800)">${initial}</div>`;
 }
-
-// ประกอบ URL แยกส่วน เพื่อให้ HTML Service ไม่ตัดข้อความหลัง "https:"
-function getDriveFileUrl_(fileId) {
-  return 'https:' + '/' + '/' + 'drive.google.com/file/d/' + fileId + '/view';
-}
-
-function getDriveThumbnailUrl_(fileId) {
-  return 'https:' + '/' + '/' + 'drive.google.com/thumbnail?id=' + fileId + '&sz=w200';
-}
 </script>
+
+<script>
+/* ============================================================
+   PREVIEW SHIM (เฉพาะโหมดพรีวิวในเครื่อง — ไม่ใช่โค้ดจริงของระบบ)
+   ไฟล์พรีวิวสร้างจากโค้ดจริง (Index.html + CSS.html + JavaScript.html)
+   โดยแทนที่ <?!= include(...) ?> และ <?= CONFIG... ?> ตามที่ GAS ทำจริง
+   แต่ google.script.run เรียกผ่าน Google ไม่ได้ในไฟล์ท้องถิ่น
+   จึงจำลองไว้สำหรับทดสอบหน้าจอ:
+     admin / admin123  -> เข้าสู่ระบบสำเร็จ (สิทธิ์ผู้ดูแลระบบ)
+     demo  / demo123   -> เข้าสู่ระบบสำเร็จ (สิทธิ์ครูที่ปรึกษา)
+     อื่น ๆ            -> "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
+   ข้อมูลอื่น ๆ เป็นชุดว่าง — ต้องรันผ่าน GAS จริงเพื่อข้อมูลจริง
+   ============================================================ */
+(function () {
+  'use strict';
+  var DEMO_USERS = {
+    admin: { password: 'admin123', user: { userId: 'U-001', fullName: 'ผู้ดูแลระบบ', role: 'admin', roleLabel: 'ผู้ดูแลระบบ', permissions: { score: true, approveLeave: true, editDelete: true, manageSystem: true } } },
+    demo:  { password: 'demo123', user: { userId: 'U-002', fullName: 'ครูที่ปรึกษา', role: 'advisor', roleLabel: 'ครูที่ปรึกษา', permissions: { score: true, approveLeave: true, editDelete: true, manageSystem: false } } }
+  };
+  // ข้อมูลตัวอย่างสำหรับแดชบอร์ดในโหมดพรีวิว (ชุดข้อมูลจริงต้องเรียกผ่าน GAS)
+  var DEMO_DASHBOARD = {
+    success: true,
+    summary: { totalStudents: 154, atRisk: 7, lineLinked: 89, todayEvents: 2 },
+    recentTimeline: [
+      { EventType: 'add', Timestamp: new Date(Date.now() - 3600e3).toISOString(), Title: 'เพิ่มคะแนนความประพฤติ', Description: 'ช่วยงานกิจกรรมจิตอาสา (+5 คะแนน)' },
+      { EventType: 'leave', Timestamp: new Date(Date.now() - 7200e3).toISOString(), Title: 'ออกนอกโรงเรียน', Description: 'ไปพบแพทย์ กลับ 15:30 น.' },
+      { EventType: 'deduct', Timestamp: new Date(Date.now() - 86400e3).toISOString(), Title: 'ลดคะแนนความประพฤติ', Description: 'ใช้โทรศัพท์ในเวลาเรียน (-3 คะแนน)' }
+    ],
+    gradeDistribution: { labels: ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'], counts: [28, 26, 30, 24, 25, 21] }
+  };
+
+  function ShimRun() {
+    var self = this;
+    this._ok = null;
+    this._fail = null;
+    this.withSuccessHandler = function (fn) { self._ok = fn; return this; };
+    this.withFailureHandler = function (fn) { self._fail = fn; return this; };
+
+    var api = {
+      handleLoginFromClient: function (username, password) {
+        var u = DEMO_USERS[username];
+        var ok = self._ok;
+        setTimeout(function () {
+          if (ok) {
+            if (u && u.password === password) {
+              ok({ success: true, token: 'preview-' + username + '-' + Date.now(), user: u.user });
+            } else {
+              ok({ success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+            }
+          }
+        }, 500);
+      },
+      validateSessionFromClient: function () { return null; },
+      apiGetDashboardSummary: function () {
+        var ok = self._ok;
+        setTimeout(function () { if (ok) ok(DEMO_DASHBOARD); }, 200);
+      }
+    };
+
+    return new Proxy(this, {
+      get: function (t, prop) {
+        if (typeof prop === 'string' && Object.prototype.hasOwnProperty.call(api, prop)) {
+          return api[prop];
+        }
+        if (prop in t) return t[prop];
+        return function () {
+          var fail = self._fail;
+          setTimeout(function () {
+            if (fail) fail({ message: 'โหมดพรีวิว: ฟังก์ชัน ' + String(prop) + ' ยังไม่มีข้อมูลจำลอง — ต้องรันผ่าน Google Apps Script จริง' });
+          }, 100);
+        };
+      }
+    });
+  }
+
+  window.google = { script: { run: new ShimRun() } };
+})();
+</script>
+
+</body>
+
+</html>

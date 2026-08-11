@@ -2,117 +2,126 @@
 // LETTERSERVICE.GS - จัดการหนังสือเชิญผู้ปกครอง (สร้าง/ยืนยัน/ส่งออก PDF)
 // ============================================
 
+// แก้ไขรูปแบบ/ข้อความของหนังสือได้จาก Google Docs นี้โดยตรง
+// ไม่ต้องแก้ไขโค้ดเพื่อปรับหน้าตาของแบบฟอร์ม
+const DEFAULT_LETTER_TEMPLATE_DOC_ID = '1JDYOo9TaD2K8Nt4qKLJq2vNC20lhj-uNtOogGsyrNf0';
+const LETTER_NO_FIXED_PREFIX = 'ศธ 04293.43/';
+
 /**
- * หาหรือสร้าง Google Docs Template เปล่าสำหรับหนังสือเชิญ (รันอัตโนมัติครั้งแรกที่ใช้งาน)
+ * คืนค่า Google Docs template ที่ใช้สร้างหนังสือเชิญ
+ * ค่าในชีต Config (LETTER_TEMPLATE_DOC_ID) ใช้เปลี่ยนไปยังเทมเพลตฉบับใหม่ได้ในอนาคต
  */
 function getOrCreateLetterTemplate_() {
-  let templateId = getConfigValue_('LETTER_TEMPLATE_DOC_ID');
-  if (templateId) {
-    try {
-      DocumentApp.openById(templateId); // เช็คว่ายังเปิดได้จริง
-      return templateId;
-    } catch (e) {
-      // ไฟล์เดิมอาจถูกลบไปแล้ว สร้างใหม่
-    }
+  const templateId = getConfigValue_('LETTER_TEMPLATE_DOC_ID') || DEFAULT_LETTER_TEMPLATE_DOC_ID;
+  try {
+    DocumentApp.openById(templateId);
+  } catch (err) {
+    throw new Error('ไม่สามารถเปิด Google Docs template ได้ กรุณาตรวจสอบค่า LETTER_TEMPLATE_DOC_ID และสิทธิ์เข้าถึงไฟล์');
   }
 
-  const doc = DocumentApp.create('เทมเพลตหนังสือเชิญผู้ปกครอง (ระบบสร้างอัตโนมัติ)');
-  const body = doc.getBody();
-  body.clear();
-
-  body.appendParagraph('บันทึกข้อความ').setHeading(DocumentApp.ParagraphHeading.TITLE).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  body.appendParagraph('ที่ {{LetterNo}}').setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
-  body.appendParagraph('วันที่ {{IssueDate}}').setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
-  body.appendParagraph('');
-  body.appendParagraph('เรื่อง {{Subject}}');
-  body.appendParagraph('เรียน ผู้ปกครองของ {{StudentPrefix}}{{StudentName}}');
-  body.appendParagraph('');
-  body.appendParagraph(
-    'ด้วยกลุ่มบริหารกิจการนักเรียน ขอเรียนแจ้งท่านผู้ปกครองทราบว่า นักเรียนชื่อ ' +
-    '{{StudentPrefix}}{{StudentName}} ระดับชั้น {{Grade}}/{{Room}} เลขประจำตัว {{StudentID}} ' +
-    'มีเรื่องเกี่ยวกับความประพฤติที่ต้องการแจ้งให้ท่านทราบและขอความร่วมมือ ดังรายละเอียดต่อไปนี้'
-  );
-  body.appendParagraph('');
-  body.appendParagraph('รายละเอียด: {{Detail}}');
-  body.appendParagraph('คะแนนความประพฤติคงเหลือ: {{CurrentScore}} คะแนน');
-  body.appendParagraph('');
-  body.appendParagraph(
-    'จึงเรียนมาเพื่อโปรดทราบ และขอความกรุณาท่านผู้ปกครองติดต่อกลับมายังโรงเรียน ' +
-    'เพื่อร่วมกันหาแนวทางดูแลนักเรียนต่อไป'
-  );
-  body.appendParagraph('');
-  body.appendParagraph('');
-  body.appendParagraph('ขอแสดงความนับถือ').setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  body.appendParagraph('');
-  body.appendParagraph('{{SignatureBlock}}').setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  body.appendParagraph('({{SignerName}})').setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  body.appendParagraph('{{SignerPosition}}').setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-
-  doc.saveAndClose();
-
-  // ย้ายไปไว้ในโฟลเดอร์ Root ของระบบ (ไม่ปะปนกับ My Drive ทั่วไป)
-  const root = DriveApp.getFolderById(DRIVE_ROOT_FOLDER_ID);
-  const file = DriveApp.getFileById(doc.getId());
-  root.addFile(file);
-  DriveApp.getRootFolder().removeFile(file);
-
-  setConfigValue_('LETTER_TEMPLATE_DOC_ID', doc.getId(), 'Google Docs Template สำหรับหนังสือเชิญผู้ปกครอง (แก้ไขเนื้อหาได้ที่ไฟล์นี้)');
-  return doc.getId();
+  // บันทึกค่าเริ่มต้นไว้ใน Config เพียงครั้งเดียว เพื่อให้เปลี่ยนเทมเพลตได้ภายหลังจากชีต
+  if (!getConfigValue_('LETTER_TEMPLATE_DOC_ID')) {
+    setConfigValue_(
+      'LETTER_TEMPLATE_DOC_ID',
+      templateId,
+      'Google Docs template สำหรับหนังสือเชิญผู้ปกครอง — แก้ไขรูปแบบจากไฟล์นี้โดยตรง'
+    );
+  }
+  return templateId;
 }
 
-/**
- * สร้างเลขที่หนังสือถัดไป รูปแบบ ศธ.บก.XXX/ปีการศึกษา
- */
-function generateLetterNo_() {
-  const year = getConfigValue_('CURRENT_ACADEMIC_YEAR') || '2569';
+/** สร้างเลขที่หนังสือจากเลขลำดับที่เจ้าหน้าที่กรอก เช่น ว116 */
+function buildLetterNo_(suffix) {
+  const manualNo = String(suffix || '').trim();
+  if (!/^ว\d+$/.test(manualNo)) {
+    throw new Error('กรุณากรอกเลขลำดับในรูปแบบ ว116');
+  }
+  return LETTER_NO_FIXED_PREFIX + manualNo;
+}
+
+function isLetterNoInUse_(letterNo, excludeLetterId) {
   const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
   const data = sheet.getDataRange().getValues();
-  let maxNum = 0;
-  data.slice(1).forEach(row => {
-    const no = String(row[1] || ''); // LetterNo
-    const match = no.match(/ศธ\.บก\.(\d+)\//);
-    if (match) {
-      const n = parseInt(match[1], 10);
-      if (n > maxNum) maxNum = n;
-    }
-  });
-  const nextNum = String(maxNum + 1).padStart(3, '0');
-  return 'ศธ.บก.' + nextNum + '/' + year;
+  const headers = data[0];
+  const idCol = headers.indexOf('LetterID');
+  const noCol = headers.indexOf('LetterNo');
+  return data.slice(1).some(row => row[idCol] !== excludeLetterId && row[noCol] === letterNo);
 }
 
 /**
- * สร้างร่างหนังสือเชิญ (Draft) - เรียกจากฟอร์มในระบบ หรือเรียกอัตโนมัติจากระบบคะแนน
+ * แปลงวันที่เป็นข้อความไทยแบบเต็ม "วันพฤหัสบดี ที่ 30 เดือน มกราคม พ.ศ. 2568"
  */
-function createLetterDraft_(studentId, subject, detail, signatureType, createdByLabel) {
+function toThaiFullDateText_(dateStr) {
+  const d = new Date(dateStr);
+  const days = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+  const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  return days[d.getDay()] + ' ที่ ' + d.getDate() + ' เดือน ' + months[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543);
+}
+
+/**
+ * วางลายเซ็นลงในย่อหน้าที่กำหนดโดย Google Docs template
+ * ใช้ {{SignatureImage}} เพื่อระบุตำแหน่ง หรือใช้บรรทัดว่างก่อนชื่อผู้ลงนามเป็นค่าเดิม
+ */
+function insertScannedSignature_(body, signerName, signatureFileId) {
+  const paragraphs = body.getParagraphs();
+  let target = null;
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (paragraphs[i].getText().indexOf('{{SignatureImage}}') !== -1) {
+      paragraphs[i].replaceText('\\{\\{SignatureImage\\}\\}', '');
+      target = paragraphs[i];
+      break;
+    }
+  }
+  if (!target) {
+    for (let i = 0; i < paragraphs.length; i++) {
+      if (paragraphs[i].getText().trim() === '') {
+        const nextText = (paragraphs[i + 1] && paragraphs[i + 1].getText()) || '';
+        if (nextText.indexOf(signerName) !== -1) {
+          target = paragraphs[i];
+          break;
+        }
+      }
+    }
+  }
+  if (!target) return;
+
+  // appendInlineImage รักษาการจัดแนวของย่อหน้าที่ตั้งไว้ใน Google Docs
+  const image = target.appendInlineImage(DriveApp.getFileById(signatureFileId).getBlob());
+  image.setWidth(120);
+  image.setHeight(45);
+}
+
+/**
+ * สร้างร่างหนังสือเชิญ (Draft)
+ */
+function createLetterDraft_(studentId, detail, appointmentDate, appointmentTime, signatureType, createdByLabel, manualNo) {
   const student = findStudentById_(studentId);
   if (!student) throw new Error('ไม่พบข้อมูลนักเรียน');
 
   const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
   const letterId = Utilities.getUuid();
-  const letterNo = generateLetterNo_();
+  const letterNo = manualNo ? buildLetterNo_(manualNo) : '';
+  if (letterNo && isLetterNoInUse_(letterNo)) throw new Error('เลขที่หนังสือนี้ถูกใช้งานแล้ว');
   const now = new Date();
+  const subject = 'ขอเชิญผู้ปกครอง';
 
   sheet.appendRow([
     letterId, letterNo, studentId, subject, 'draft',
     signatureType || 'เซ็นหลังพิมพ์', '', createdByLabel || 'ระบบอัตโนมัติ', now, ''
   ]);
 
-  // เก็บรายละเอียดเนื้อหาไว้ใน Timeline เพื่อดึงมาใช้ตอน generate PDF (เก็บใน Description)
   addTimelineEvent_(studentId, 'invite',
-    'สร้างร่างหนังสือเชิญผู้ปกครอง เลขที่ ' + letterNo,
-    subject + (detail ? ' — ' + detail : ''),
+    'สร้างร่างหนังสือเชิญผู้ปกครอง' + (letterNo ? ' เลขที่ ' + letterNo : ''),
+    detail + ' — นัดหมาย ' + appointmentDate + ' เวลา ' + appointmentTime + ' น. — LetterID: ' + letterId,
     createdByLabel || 'ระบบอัตโนมัติ');
 
-  return { letterId, letterNo, detail };
+  return { letterId, letterNo, detail, appointmentDate, appointmentTime };
 }
 
-/**
- * เรียกจาก ScoreService เมื่อคะแนนข้ามเกณฑ์แจ้งเตือน — สร้างร่างอัตโนมัติ
- */
 function createAutoDraftLetter_(studentId, threshold, currentScore) {
-  const subject = 'แจ้งพฤติกรรมกรณีคะแนนความประพฤติลดต่ำกว่าเกณฑ์';
-  const detail = 'คะแนนความประพฤติของนักเรียนลดลงถึงเกณฑ์ ' + threshold + ' คะแนน (คะแนนคงเหลือ ' + currentScore + ' คะแนน) ระบบจึงสร้างร่างหนังสือเชิญผู้ปกครองให้อัตโนมัติ กรุณาตรวจสอบและยืนยันออกเอกสารที่เมนู "หนังสือเชิญผู้ปกครอง"';
-  return createLetterDraft_(studentId, subject, detail, 'เซ็นหลังพิมพ์', 'ระบบอัตโนมัติ');
+  const detail = 'คะแนนความประพฤติลดลงถึงเกณฑ์ ' + threshold + ' คะแนน กรุณาตรวจสอบและนัดหมายวัน-เวลาที่เมนู "หนังสือเชิญผู้ปกครอง"';
+  // ยังไม่กำหนดวันนัดหมาย (ให้เจ้าหน้าที่กรอกภายหลัง) — สร้างสถานะ draft ไว้ก่อน
+  return createLetterDraft_(studentId, detail, '', '', 'เซ็นหลังพิมพ์', 'ระบบอัตโนมัติ', '');
 }
 
 function api_createLetter_(token, payload) {
@@ -123,9 +132,16 @@ function api_createLetter_(token, payload) {
       return { success: false, message: 'คุณไม่มีสิทธิ์สร้างหนังสือเชิญ' };
     }
     if (!payload.studentId) return { success: false, message: 'กรุณาเลือกนักเรียน' };
-    if (!payload.subject) return { success: false, message: 'กรุณาระบุเรื่อง' };
+    if (!payload.detail) return { success: false, message: 'กรุณาระบุรายละเอียดปัญหา' };
+    if (!payload.appointmentDate || !payload.appointmentTime) {
+      return { success: false, message: 'กรุณาระบุวันและเวลานัดหมาย' };
+    }
+    if (!payload.letterNoSuffix) return { success: false, message: 'กรุณากรอกเลขลำดับหนังสือ' };
 
-    const result = createLetterDraft_(payload.studentId, payload.subject, payload.detail, payload.signatureType, session.fullName);
+    const result = createLetterDraft_(
+      payload.studentId, payload.detail, payload.appointmentDate, payload.appointmentTime,
+      payload.signatureType, session.fullName, payload.letterNoSuffix
+    );
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.INVITATION_LETTERS, result.letterId, '', 'สร้างร่างหนังสือเชิญ: ' + result.letterNo);
 
     return { success: true, letterId: result.letterId, letterNo: result.letterNo };
@@ -148,7 +164,6 @@ function api_getLetters_(token, filters) {
     if (filters.status && filters.status !== 'all') {
       letters = letters.filter(l => l.Status === filters.status);
     }
-
     letters.sort((a, b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
 
     const studentSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
@@ -159,7 +174,6 @@ function api_getLetters_(token, filters) {
       const obj = rowToObject_(studentHeaders, row);
       studentMap[obj.StudentID] = obj;
     });
-
     letters.forEach(l => {
       const st = studentMap[l.StudentID];
       l.StudentName = st ? (st.Prefix || '') + (st.FirstName || '') + ' ' + (st.LastName || '') : l.StudentID;
@@ -177,9 +191,80 @@ function api_getLetters_(token, filters) {
 }
 
 /**
- * ยืนยันออกเอกสารจริง — generate PDF จาก Template แล้วบันทึกลง Drive
+ * สร้าง PDF ตัวอย่างจาก Google Docs template ล่าสุด
+ * ไม่มีการบันทึกลง InvitationLetters, Timeline หรือ Audit Log
  */
-function api_confirmLetter_(token, letterId) {
+function api_previewLetter_(token, payload) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์พรีวิวหนังสือเชิญ' };
+    }
+    if (!payload.studentId || !payload.detail || !payload.appointmentDate || !payload.appointmentTime || !payload.letterNoSuffix) {
+      return { success: false, message: 'กรุณากรอกข้อมูลหนังสือให้ครบก่อนพรีวิว' };
+    }
+
+    const student = findStudentById_(payload.studentId);
+    if (!student) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
+
+    const letterNo = buildLetterNo_(payload.letterNoSuffix);
+    const templateId = getOrCreateLetterTemplate_();
+    const targetFolder = getLetterPreviewFolder_();
+    const copyName = 'ตัวอย่าง_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
+    const copyFile = DriveApp.getFileById(templateId).makeCopy(copyName, targetFolder);
+    const copyDoc = DocumentApp.openById(copyFile.getId());
+    const body = copyDoc.getBody();
+    const school = CONFIG.SCHOOL_INFO;
+    const sig = CONFIG.SIGNER_INFO;
+    const replacements = {
+      '{{LetterNo}}': letterNo,
+      '{{SchoolName}}': school.NAME,
+      '{{SchoolAddress}}': school.ADDRESS,
+      '{{SchoolPostalCode}}': school.POSTAL_CODE || '',
+      '{{IssueDate}}': toThaiDateServer_(new Date()),
+      '{{StudentPrefix}}': student.Prefix || '',
+      '{{StudentName}}': (student.FirstName || '') + ' ' + (student.LastName || ''),
+      '{{Grade}}': student.Grade || '',
+      '{{Room}}': student.Room || '',
+      '{{Detail}}': payload.detail,
+      '{{LocationDetail}}': school.LOCATION_DETAIL,
+      '{{AppointmentDateText}}': toThaiFullDateText_(payload.appointmentDate),
+      '{{AppointmentTime}}': payload.appointmentTime,
+      '{{SignerName}}': sig.NAME,
+      '{{SignerPosition}}': sig.POSITION,
+      '{{SignerPositionLine1}}': String(sig.POSITION).split('\n')[0] || '',
+      '{{SignerPositionLine2}}': String(sig.POSITION).split('\n').slice(1).join(' ') || '',
+      '{{Department}}': school.DEPARTMENT,
+      '{{Phone}}': school.PHONE,
+      '{{Email}}': school.EMAIL,
+      '{{Motto}}': school.MOTTO,
+      '{{SignatureBlock}}': payload.signatureType === 'เซ็นหลังพิมพ์' ? '.........................................' : ''
+    };
+    Object.keys(replacements).forEach(key => body.replaceText(key.replace(/[{}]/g, '\\$&'), replacements[key]));
+
+    const sigFileId = getConfigValue_('LETTER_SIGNATURE_FILE_ID');
+    if (payload.signatureType === 'ลายเซ็นสแกน' && sigFileId) {
+      insertScannedSignature_(body, sig.NAME, sigFileId);
+    } else {
+      body.replaceText('\\{\\{SignatureImage\\}\\}', '');
+    }
+
+    copyDoc.saveAndClose();
+    const pdfFile = targetFolder.createFile(DriveApp.getFileById(copyFile.getId()).getAs('application/pdf'))
+      .setName(copyName + '.pdf');
+    DriveApp.getFileById(copyFile.getId()).setTrashed(true);
+
+    return { success: true, pdfUrl: pdfFile.getUrl(), pdfFileId: pdfFile.getId() };
+  } catch (err) {
+    return { success: false, message: 'ไม่สามารถสร้างไฟล์ตัวอย่าง: ' + err.message };
+  }
+}
+
+/**
+ * ยืนยันออกเอกสารจริง (ต้องกรอกวัน-เวลานัดหมายก่อน หากยังไม่มี)
+ */
+function api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, letterNoSuffix) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
@@ -202,43 +287,81 @@ function api_confirmLetter_(token, letterId) {
     const student = findStudentById_(letterObj.StudentID);
     if (!student) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
 
-    // ดึงรายละเอียดล่าสุดจาก Timeline (บันทึกไว้ตอนสร้าง draft)
     const timeline = getStudentTimeline_(letterObj.StudentID);
-    const relatedEvent = timeline.find(ev => ev.Title && ev.Title.indexOf(letterObj.LetterNo) !== -1);
-    const detail = relatedEvent ? relatedEvent.Description.split(' — ').slice(1).join(' — ') : '';
+    const relatedEvent = timeline.find(ev => ev.Description && ev.Description.indexOf('LetterID: ' + letterObj.LetterID) !== -1)
+      || timeline.find(ev => letterObj.LetterNo && ev.Title && ev.Title.indexOf(letterObj.LetterNo) !== -1);
+    let detail = '';
+    let apptDate = appointmentDate, apptTime = appointmentTime;
+    if (relatedEvent && relatedEvent.Description) {
+      const parts = relatedEvent.Description.split(' — นัดหมาย ');
+      detail = parts[0] || '';
+      if (!apptDate && parts[1]) {
+        const m = parts[1].match(/^(.*) เวลา (.*) น\.$/);
+        if (m) { apptDate = apptDate || m[1]; apptTime = apptTime || m[2]; }
+      }
+    }
+    if (!apptDate || !apptTime) {
+      return { success: false, message: 'กรุณาระบุวันและเวลานัดหมายก่อนยืนยันออกเอกสาร' };
+    }
+
+    if (!letterObj.LetterNo) {
+      const letterNo = buildLetterNo_(letterNoSuffix);
+      if (isLetterNoInUse_(letterNo, letterId)) return { success: false, message: 'เลขที่หนังสือนี้ถูกใช้งานแล้ว' };
+      sheet.getRange(rowIndex + 1, headers.indexOf('LetterNo') + 1).setValue(letterNo);
+      letterObj.LetterNo = letterNo;
+    }
 
     const templateId = getOrCreateLetterTemplate_();
     const templateFile = DriveApp.getFileById(templateId);
     const targetFolder = getLetterFolder_(student.Grade);
 
-    const copyName = letterObj.LetterNo.replace(/\//g, '_') + '_' + letterObj.StudentID;
+    const copyName = letterObj.LetterNo.replace(/[\/\s]/g, '_') + '_' + letterObj.StudentID;
     const copyFile = templateFile.makeCopy(copyName, targetFolder);
     const copyDoc = DocumentApp.openById(copyFile.getId());
     const body = copyDoc.getBody();
 
-    const signatureBlock = letterObj.SignatureType === 'ลายเซ็นสแกน' ? '[ลายเซ็นสแกน — รอเฟสถัดไป]' : '.........................................';
+    const sig = CONFIG.SIGNER_INFO;
+    const school = CONFIG.SCHOOL_INFO;
+    const sigFileId = getConfigValue_('LETTER_SIGNATURE_FILE_ID');
 
     const replacements = {
       '{{LetterNo}}': letterObj.LetterNo,
+      '{{SchoolName}}': school.NAME,
+      '{{SchoolAddress}}': school.ADDRESS,
+      '{{SchoolPostalCode}}': school.POSTAL_CODE || '',
       '{{IssueDate}}': toThaiDateServer_(new Date()),
-      '{{Subject}}': letterObj.Subject,
       '{{StudentPrefix}}': student.Prefix || '',
       '{{StudentName}}': (student.FirstName || '') + ' ' + (student.LastName || ''),
       '{{Grade}}': student.Grade || '',
       '{{Room}}': student.Room || '',
-      '{{StudentID}}': student.StudentID || '',
       '{{Detail}}': detail || '-',
-      '{{CurrentScore}}': String(student.CurrentScore),
-      '{{SignatureBlock}}': signatureBlock,
-      '{{SignerName}}': 'เซ็นชื่อ',
-      '{{SignerPosition}}': 'ครูฝ่ายปกครอง'
+      '{{LocationDetail}}': school.LOCATION_DETAIL,
+      '{{AppointmentDateText}}': toThaiFullDateText_(apptDate),
+      '{{AppointmentTime}}': apptTime,
+      '{{SignerName}}': sig.NAME,
+      '{{SignerPosition}}': sig.POSITION,
+      '{{SignerPositionLine1}}': String(sig.POSITION).split('\n')[0] || '',
+      '{{SignerPositionLine2}}': String(sig.POSITION).split('\n').slice(1).join(' ') || '',
+      '{{Department}}': school.DEPARTMENT,
+      '{{Phone}}': school.PHONE,
+      '{{Email}}': school.EMAIL,
+      '{{Motto}}': school.MOTTO,
+      '{{SignatureBlock}}': letterObj.SignatureType === 'เซ็นหลังพิมพ์' ? '.........................................' : ''
     };
     Object.keys(replacements).forEach(key => body.replaceText(key.replace(/[{}]/g, '\\$&'), replacements[key]));
+
+    // แทรกรูปลายเซ็นโดยเคารพตำแหน่งที่กำหนดใน Google Docs template
+    if (letterObj.SignatureType === 'ลายเซ็นสแกน' && sigFileId) {
+      insertScannedSignature_(body, sig.NAME, sigFileId);
+    } else {
+      body.replaceText('\\{\\{SignatureImage\\}\\}', '');
+    }
+
     copyDoc.saveAndClose();
 
     const pdfBlob = DriveApp.getFileById(copyFile.getId()).getAs('application/pdf');
     const pdfFile = targetFolder.createFile(pdfBlob).setName(copyName + '.pdf');
-    DriveApp.getFileById(copyFile.getId()).setTrashed(true); // ลบไฟล์ Doc ชั่วคราว เหลือแค่ PDF
+    DriveApp.getFileById(copyFile.getId()).setTrashed(true);
 
     sheet.getRange(rowIndex + 1, headers.indexOf('Status') + 1).setValue('confirmed');
     sheet.getRange(rowIndex + 1, headers.indexOf('PdfFileID') + 1).setValue(pdfFile.getId());
@@ -247,7 +370,6 @@ function api_confirmLetter_(token, letterId) {
     addTimelineEvent_(letterObj.StudentID, 'invite',
       'ออกหนังสือเชิญผู้ปกครองเรียบร้อยแล้ว เลขที่ ' + letterObj.LetterNo,
       'ยืนยันโดย ' + session.fullName, session.fullName);
-
     logAudit_(session, 'CONFIRM', CONFIG.SHEET_NAMES.INVITATION_LETTERS, letterId, 'draft', 'confirmed');
 
     return { success: true, pdfUrl: pdfFile.getUrl(), pdfFileId: pdfFile.getId() };
@@ -264,12 +386,9 @@ function toThaiDateServer_(date) {
 // ============================================
 // Public Functions (สำหรับ google.script.run)
 // ============================================
-function apiCreateLetter(token, payload) {
-  return api_createLetter_(token, payload);
-}
-function apiGetLetters(token, filters) {
-  return api_getLetters_(token, filters);
-}
-function apiConfirmLetter(token, letterId) {
-  return api_confirmLetter_(token, letterId);
+function apiCreateLetter(token, payload) { return api_createLetter_(token, payload); }
+function apiGetLetters(token, filters) { return api_getLetters_(token, filters); }
+function apiPreviewLetter(token, payload) { return api_previewLetter_(token, payload); }
+function apiConfirmLetter(token, letterId, appointmentDate, appointmentTime, letterNoSuffix) {
+  return api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, letterNoSuffix);
 }

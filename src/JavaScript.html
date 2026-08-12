@@ -205,6 +205,41 @@
     return sessionStorage.getItem("sa_token");
   }
 
+  /**
+   * แสดงข้อความยืนยันหลังบันทึกข้อมูล พร้อมเลขลำดับรายการ
+   * สไตล์ทันสมัย กระชับ ใช้สีประจำระบบ (กรมท่า + ทอง)
+   * @param {string} title หัวข้อ
+   * @param {number|string} recordSequence เลขลำดับ (แสดงเป็น "ลำดับที่ N")
+   * @param {Array<{text:string, color?:string}>} lines รายละเอียดเพิ่มเติม (ไม่บังคับ)
+   */
+  function showSaveSuccess(title, recordSequence, lines) {
+    const seq = recordSequence || "-";
+    const detailHtml = (lines || [])
+      .map(
+        (l) =>
+          '<div style="color:' +
+          (l.color || "#5b6478") +
+          ';font-size:.86rem;line-height:1.65">' +
+          l.text +
+          "</div>",
+      )
+      .join("");
+    Swal.fire({
+      icon: "success",
+      title: title,
+      html:
+        '<div style="text-align:center">' +
+        '<div style="display:inline-flex;align-items:center;gap:.45rem;background:linear-gradient(155deg,#1c3768,#152a52);color:#fff;font-family:\'Prompt\';font-weight:700;font-size:1.2rem;padding:.5rem 1.4rem;border-radius:12px;margin:.1rem 0 .7rem;box-shadow:0 4px 14px rgba(21,42,82,.25)">' +
+        '<i class="bi bi-hash" style="color:#d9b94a;font-size:1.05rem"></i> ลำดับที่ ' +
+        seq +
+        "</div>" +
+        detailHtml +
+        "</div>",
+      timer: 2400,
+      showConfirmButton: false,
+    });
+  }
+
   function debounceSearchStudents() {
     clearTimeout(studentSearchTimer);
     studentSearchTimer = setTimeout(loadStudents, 400);
@@ -285,6 +320,10 @@
     document.getElementById("studentModalTitle").textContent =
       "เพิ่มนักเรียนใหม่";
     document.getElementById("sm_studentId").value = "";
+    document.getElementById("sm_studentCode").value = "";
+    document.getElementById("sm_studentCode").readOnly = false;
+    document.getElementById("sm_studentCodeHelp").textContent =
+      "กรอกรหัสนักเรียนเองได้ (ต้องไม่ซ้ำกับนักเรียนคนอื่น)";
     document.getElementById("sm_photoPreview").innerHTML = "-";
     document.getElementById("sm_photoInput").value = "";
     document.getElementById("sm_photoStatus").textContent = "";
@@ -331,8 +370,279 @@
     new bootstrap.Modal(document.getElementById("studentModal")).show();
   }
 
+  /* ================= IMPORT STUDENTS (Excel/CSV) ================= */
+  const IMPORT_COLUMNS = [
+    { key: "studentId", label: "รหัสนักเรียน", required: true },
+    { key: "prefix", label: "คำนำหน้า" },
+    { key: "firstName", label: "ชื่อ", required: true },
+    { key: "lastName", label: "นามสกุล", required: true },
+    { key: "gender", label: "เพศ" },
+    { key: "grade", label: "ระดับชั้น", required: true },
+    { key: "room", label: "ห้อง", required: true },
+    { key: "no", label: "เลขที่", required: true },
+    { key: "citizenId", label: "เลขบัตรประชาชน", required: true },
+    { key: "dob", label: "วันเกิด", required: true },
+    { key: "bloodType", label: "หมู่เลือด" },
+    { key: "nationality", label: "สัญชาติ" },
+    { key: "religion", label: "ศาสนา" },
+    { key: "ethnicity", label: "เชื้อชาติ" },
+    { key: "addressNo", label: "บ้านเลขที่" },
+    { key: "addressMoo", label: "หมู่" },
+    { key: "addressRoad", label: "ถนน" },
+    { key: "addressTambon", label: "ตำบล" },
+    { key: "addressAmphoe", label: "อำเภอ" },
+    { key: "addressProvince", label: "จังหวัด" },
+    { key: "parentName", label: "ชื่อผู้ปกครอง" },
+    { key: "parentRelation", label: "ความเกี่ยวข้อง" },
+    { key: "parentJob", label: "อาชีพผู้ปกครอง" },
+    { key: "parentPhone", label: "เบอร์โทรผู้ปกครอง" },
+    { key: "fatherName", label: "ชื่อบิดา" },
+    { key: "fatherJob", label: "อาชีพบิดา" },
+    { key: "motherName", label: "ชื่อมารดา" },
+    { key: "motherJob", label: "อาชีพมารดา" },
+  ];
+
+  let importValidRows = [];
+
+  function openImportStudentsModal() {
+    importValidRows = [];
+    document.getElementById("importFileInput").value = "";
+    document.getElementById("importPreview").innerHTML = "";
+    document.getElementById("importSubmitBtn").disabled = true;
+    document.getElementById("importSubmitBtn").innerHTML =
+      '<i class="bi bi-upload me-1"></i> นำเข้านักเรียน';
+    new bootstrap.Modal(document.getElementById("importStudentsModal")).show();
+  }
+
+  function downloadStudentImportTemplate() {
+    const sampleRow = {
+      studentId: "26165",
+      prefix: "เด็กชาย",
+      firstName: "ขยัน",
+      lastName: "เก่งมาก",
+      gender: "ชาย",
+      grade: "ม.1",
+      room: "1",
+      no: "1",
+      citizenId: "1234567890123",
+      dob: "2010-06-02",
+      bloodType: "O",
+      nationality: "ไทย",
+      religion: "พุทธ",
+      ethnicity: "ไทย",
+      addressNo: "1/1",
+      addressMoo: "1",
+      addressRoad: "ถ.มิตรภาพ",
+      addressTambon: "ตำบลสมเด็จ",
+      addressAmphoe: "สมเด็จ",
+      addressProvince: "กาฬสินธุ์",
+      parentName: "นายสมชาย ใจดี",
+      parentRelation: "บิดา",
+      parentJob: "รับราชการ",
+      parentPhone: "0812345678",
+      fatherName: "นายสมชาย ใจดี",
+      fatherJob: "รับราชการ",
+      motherName: "นางสมหญิง ใจดี",
+      motherJob: "ค้าขาย",
+    };
+    const escapeCell = (v) => {
+      const s = String(v === undefined || v === null ? "" : v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const headerLine = IMPORT_COLUMNS.map((c) => escapeCell(c.label)).join(",");
+    const sampleLine = IMPORT_COLUMNS.map((c) => escapeCell(sampleRow[c.key])).join(",");
+    const csv = headerLine + "\n" + sampleLine + "\n";
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "เทมเพลตนำเข้านักเรียน.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+
+  function normalizeImportCell(v) {
+    if (v === null || v === undefined) return "";
+    if (v instanceof Date) {
+      return (
+        v.getFullYear() +
+        "-" +
+        String(v.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(v.getDate()).padStart(2, "0")
+      );
+    }
+    if (typeof v === "number" && v > 20000 && v < 60000 && XLSX && XLSX.SSF) {
+      const d = XLSX.SSF.parse_date_code(v);
+      if (d) {
+        return d.y + "-" + String(d.m).padStart(2, "0") + "-" + String(d.d).padStart(2, "0");
+      }
+    }
+    return String(v).trim();
+  }
+
+  function validateImportRow(row) {
+    const required = IMPORT_COLUMNS.filter((c) => c.required).map((c) => c.key);
+    const missing = required.filter((k) => !row[k]);
+    if (missing.length) {
+      return (
+        "กรอกไม่ครบ: " +
+        missing.map((k) => IMPORT_COLUMNS.find((c) => c.key === k).label).join(", ")
+      );
+    }
+    if (!/^[A-Za-z0-9\-_./]+$/.test(row.studentId)) return "รหัสนักเรียนมีอักขระไม่ถูกต้อง";
+    if (row.studentId.length > 20) return "รหัสนักเรียนยาวเกินไป";
+    if (!/^\d{13}$/.test(row.citizenId)) return "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก";
+    return "";
+  }
+
+  function handleImportFileSelect(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const preview = document.getElementById("importPreview");
+    preview.innerHTML =
+      '<div class="text-center text-secondary py-4"><i class="bi bi-hourglass-split me-2"></i>กำลังอ่านไฟล์...</div>';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        renderImportPreview(rows);
+      } catch (err) {
+        preview.innerHTML =
+          '<div class="alert alert-danger small">อ่านไฟล์ไม่สำเร็จ: ' + err.message + "</div>";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function renderImportPreview(rows) {
+    const preview = document.getElementById("importPreview");
+    if (!rows || rows.length < 2) {
+      preview.innerHTML =
+        '<div class="alert alert-warning small">ไม่พบข้อมูลในไฟล์ — ไฟล์ต้องมีแถวหัวคอลัมน์และข้อมูลอย่างน้อย 1 แถว</div>';
+      return;
+    }
+    const headers = rows[0].map((h) => String(h || "").trim());
+    const colMap = {};
+    IMPORT_COLUMNS.forEach((c) => {
+      const idx = headers.indexOf(c.label);
+      if (idx !== -1) colMap[c.key] = idx;
+    });
+
+    const missingHeaders = IMPORT_COLUMNS.filter(
+      (c) => c.required && colMap[c.key] === undefined,
+    ).map((c) => c.label);
+    if (missingHeaders.length) {
+      preview.innerHTML =
+        '<div class="alert alert-warning small">⚠️ ไม่พบคอลัมน์ที่จำเป็นในไฟล์: <b>' +
+        missingHeaders.join(", ") +
+        "</b> — กรุณาใช้ไฟล์ตามเทมเพลต</div>";
+      document.getElementById("importSubmitBtn").disabled = true;
+      return;
+    }
+
+    const parsed = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.every((cell) => String(cell === undefined ? "" : cell).trim() === "")) continue;
+      const row = {};
+      IMPORT_COLUMNS.forEach((c) => {
+        const idx = colMap[c.key];
+        row[c.key] = idx === undefined ? "" : normalizeImportCell(r[idx]);
+      });
+      parsed.push({ line: i + 1, row: row, error: validateImportRow(row) });
+    }
+
+    if (!parsed.length) {
+      preview.innerHTML = '<div class="alert alert-warning small">ไม่พบแถวข้อมูลในไฟล์</div>';
+      return;
+    }
+
+    importValidRows = parsed.filter((p) => !p.error).map((p) => p.row);
+    const ok = importValidRows.length;
+    const bad = parsed.length - ok;
+
+    preview.innerHTML =
+      '<div class="d-flex gap-2 mb-2 flex-wrap">' +
+      '<span class="badge-soft badge-navy">พบข้อมูล ' + parsed.length + " แถว</span>" +
+      '<span class="badge-soft badge-good">ผ่าน ' + ok + " แถว</span>" +
+      (bad ? '<span class="badge-soft badge-bad">ผิดพลาด ' + bad + " แถว</span>" : "") +
+      '</div><div style="max-height:320px;overflow:auto">' +
+      '<table class="custom-table"><thead><tr><th>บรรทัด</th><th>รหัสนักเรียน</th><th>ชื่อ-นามสกุล</th><th>ชั้น/ห้อง</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead><tbody>' +
+      parsed
+        .map(
+          (p) =>
+            "<tr>" +
+            "<td>" + p.line + "</td>" +
+            "<td>" + (p.row.studentId || "-") + "</td>" +
+            "<td>" + (p.row.prefix || "") + (p.row.firstName || "") + " " + (p.row.lastName || "") + "</td>" +
+            "<td>" + (p.row.grade || "-") + "/" + (p.row.room || "-") + "</td>" +
+            "<td>" +
+            (p.error
+              ? '<span class="badge-soft badge-bad">ผิดพลาด</span>'
+              : '<span class="badge-soft badge-good">ผ่าน</span>') +
+            "</td>" +
+            "<td class=\"text-secondary\">" + (p.error || "พร้อมนำเข้า") + "</td>" +
+            "</tr>",
+        )
+        .join("") +
+      "</tbody></table></div>";
+
+    const btn = document.getElementById("importSubmitBtn");
+    btn.disabled = ok === 0;
+    btn.innerHTML =
+      ok > 0
+        ? '<i class="bi bi-upload me-1"></i> นำเข้านักเรียน ' + ok + " คน"
+        : '<i class="bi bi-upload me-1"></i> นำเข้านักเรียน';
+  }
+
+  function submitImportStudents() {
+    if (!importValidRows.length) return;
+    Swal.fire({
+      icon: "question",
+      title: "ยืนยันการนำเข้า",
+      html: "นำเข้านักเรียน <b>" + importValidRows.length + " คน</b> เข้าสู่ระบบ?",
+      showCancelButton: true,
+      confirmButtonText: "ยืนยันนำเข้า",
+      cancelButtonText: "ยกเลิก",
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (!res.success) {
+            Swal.fire({ icon: "error", title: "นำเข้าไม่สำเร็จ", text: res.message });
+            return;
+          }
+          const lines = ["นำเข้าเรียบร้อย <b>" + res.imported + " คน</b>"];
+          if (res.failed > 0) {
+            lines.push("ข้าม <b>" + res.failed + " รายการ</b> ที่มีข้อผิดพลาด (ดูจากพรีวิว)");
+          }
+          Swal.fire({
+            icon: "success",
+            title: "นำเข้านักเรียนเสร็จสิ้น",
+            html: lines.join("<br>"),
+            timer: 2500,
+            showConfirmButton: false,
+          });
+          bootstrap.Modal.getInstance(document.getElementById("importStudentsModal")).hide();
+          loadStudents();
+        })
+        .withFailureHandler((err) =>
+          Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+        )
+        .apiImportStudents(getToken(), importValidRows);
+    });
+  }
+
   function saveStudent() {
+    const studentCode = document
+      .getElementById("sm_studentCode")
+      .value.trim();
     const payload = {
+      studentId: studentCode,
       prefix: document.getElementById("sm_prefix").value,
       firstName: document.getElementById("sm_firstName").value.trim(),
       lastName: document.getElementById("sm_lastName").value.trim(),
@@ -365,6 +675,7 @@
     };
 
     const requiredFields = [
+      { key: "studentId", label: "รหัสนักเรียน" },
       { key: "prefix", label: "คำนำหน้า" },
       { key: "firstName", label: "ชื่อ" },
       { key: "lastName", label: "นามสกุล" },
@@ -399,8 +710,18 @@
       });
       return;
     }
+    if (!/^[A-Za-z0-9\-_./]+$/.test(studentCode)) {
+      Swal.fire({
+        icon: "warning",
+        title: "รหัสนักเรียนไม่ถูกต้อง",
+        text: "ใช้ตัวอักษร ตัวเลข หรือ - _ . / เท่านั้น",
+      });
+      return;
+    }
 
     const editId = document.getElementById("sm_studentId").value;
+    // แก้ไข: รหัสนักเรียนไม่สามารถเปลี่ยนได้ ไม่อนุญาตให้ส่งรหัสใหม่ไปบันทึก
+    if (editId) delete payload.studentId;
 
     if (editId) {
       google.script.run
@@ -442,12 +763,11 @@
               bootstrap.Modal.getInstance(
                 document.getElementById("studentModal"),
               ).hide();
-              Swal.fire({
-                icon: "success",
-                title: "บันทึกสำเร็จ",
-                timer: 1500,
-                showConfirmButton: false,
-              });
+              showSaveSuccess(
+                "บันทึกนักเรียนเรียบร้อย",
+                res.recordSequence,
+                [{ text: "ข้อมูลนักเรียนถูกบันทึกลงระบบแล้ว" }],
+              );
               loadStudents();
             });
           } else {
@@ -498,6 +818,65 @@
     const parent = res.parent || {};
     const timeline = res.timeline || [];
 
+    // ---- สรุปคะแนนความประพฤติ (เริ่มต้น / หัก / คงเหลือ) ----
+    const sc = res.scoreSummary || {};
+    const initialScore = Number(sc.initialScore) || 100;
+    const totalDeducted = Math.max(0, Number(sc.totalDeducted) || 0);
+    const hasDeduction = Number(sc.deductedCount || 0) > 0;
+    const currentScore = !isNaN(Number(sc.currentScore))
+      ? Number(sc.currentScore)
+      : Number(st.CurrentScore) || 0;
+
+    // สถานะความประพฤติ: ไม่มีประวัติหักคะแนน หรือคะแนน >= 80 → ยอดเยี่ยม
+    let conduct = { cls: "cb-excellent", title: "ยอดเยี่ยม", sub: "ความประพฤติดีมาก" };
+    if (hasDeduction && currentScore < 80) {
+      if (currentScore >= 60)
+        conduct = { cls: "cb-good", title: "ดี", sub: "ความประพฤติอยู่ในเกณฑ์ดี" };
+      else if (currentScore >= 40)
+        conduct = { cls: "cb-fair", title: "พอใช้", sub: "ควรปรับปรุงความประพฤติ" };
+      else
+        conduct = { cls: "cb-watch", title: "ต้องปรับปรุง", sub: "อยู่ในเกณฑ์เฝ้าระวังเป็นพิเศษ" };
+    }
+
+    const scoreSectionHtml = `
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="score-card sc-initial">
+            <div class="sc-head">
+              <div class="sc-icn"><i class="bi bi-flag-fill"></i></div>
+              <div class="sc-lbl">คะแนนเริ่มต้น</div>
+            </div>
+            <div class="sc-val">${initialScore}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="score-card sc-deducted">
+            <div class="sc-head">
+              <div class="sc-icn"><i class="bi bi-dash-circle-fill"></i></div>
+              <div class="sc-lbl">คะแนนที่หัก</div>
+            </div>
+            <div class="sc-val">${totalDeducted}</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="score-card sc-current">
+            <div class="sc-head">
+              <div class="sc-icn"><i class="bi bi-award-fill"></i></div>
+              <div class="sc-lbl">คะแนนคงเหลือ</div>
+            </div>
+            <div class="sc-val" style="color:${currentScore < 70 ? "var(--bad)" : "var(--navy-900)"}">${currentScore}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="conduct-banner ${conduct.cls} mb-3">
+        <i class="bi bi-stars cb-icon"></i>
+        <div>
+          <div class="cb-title">${conduct.title}</div>
+          <div class="cb-sub">${conduct.sub}</div>
+        </div>
+      </div>`;
+
     const actionsEl = document.getElementById("profileActions");
     const canScore =
       currentUser && currentUser.permissions && currentUser.permissions.score;
@@ -535,14 +914,13 @@
     };
 
     document.getElementById("profileContent").innerHTML = `
+  ${scoreSectionHtml}
   <div class="row g-3">
     <div class="col-lg-4">
       <div class="card-panel text-center">
         ${renderAvatarHtml(st.PhotoFileID, (st.FirstName || "-")[0] + (st.LastName || "-")[0], "avatar-lg mx-auto mb-3")}
         <h4 class="mb-0">${st.Prefix || ""}${st.FirstName || ""} ${st.LastName || ""}</h4>
         <div class="text-secondary small mb-3">${st.StudentID} · ${st.Grade}/${st.Room} เลขที่ ${st.No}</div>
-        <div class="score-pill mb-0" style="color:${st.CurrentScore < 70 ? "var(--bad)" : "var(--navy-900)"}">${st.CurrentScore}</div>
-        <div class="text-secondary small mb-3">คะแนนความประพฤติคงเหลือ (${st.EducationPhase})</div>
         <div class="text-start small">
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เพศ</span><span>${st.Gender || "-"}</span></div>
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">วันเกิด</span><span>${st.DOB ? toThaiDate(st.DOB) : "-"}</span></div>
@@ -633,6 +1011,10 @@
         document.getElementById("studentModalTitle").textContent =
           "แก้ไขข้อมูลนักเรียน";
         document.getElementById("sm_studentId").value = studentId;
+        document.getElementById("sm_studentCode").value = st.StudentID || "";
+        document.getElementById("sm_studentCode").readOnly = true;
+        document.getElementById("sm_studentCodeHelp").textContent =
+          "รหัสนักเรียนไม่สามารถแก้ไขได้หลังสร้างแล้ว";
         document.getElementById("sm_photoInput").value = "";
         document.getElementById("sm_photoStatus").textContent = "";
         pendingPhotoBase64 = null;
@@ -1003,17 +1385,14 @@
             });
             return;
           }
-          let msg = `บันทึกลำดับที่ ${res.recordSequence || "-"}\nคะแนนคงเหลือ: ${res.newScore} คะแนน`;
+          const lines = [{ text: `คะแนนคงเหลือ: ${res.newScore} คะแนน` }];
           if (res.alertTriggered !== null && res.alertTriggered !== undefined) {
-            msg += `\n⚠️ คะแนนลดถึงเกณฑ์ ${res.alertTriggered} คะแนน — ควรเชิญผู้ปกครอง`;
+            lines.push({
+              text: `⚠️ คะแนนลดถึงเกณฑ์ ${res.alertTriggered} คะแนน — ควรเชิญผู้ปกครอง`,
+              color: "#c9861f",
+            });
           }
-          Swal.fire({
-            icon: "success",
-            title: "บันทึกสำเร็จ",
-            text: msg,
-            timer: 2800,
-            showConfirmButton: false,
-          });
+          showSaveSuccess("บันทึกคะแนนเรียบร้อย", res.recordSequence, lines);
 
           document.getElementById("scoreReasonText").value = "";
           document.getElementById("scoreReasonPreset").value = "";
@@ -1184,13 +1563,9 @@
           bootstrap.Modal.getInstance(
             document.getElementById("leaveModal"),
           ).hide();
-          Swal.fire({
-            icon: "success",
-            title: "บันทึกคำร้องเรียบร้อยแล้ว",
-            text: "บันทึกลำดับที่ " + (res.recordSequence || "-"),
-            timer: 1500,
-            showConfirmButton: false,
-          });
+          showSaveSuccess("บันทึกคำร้องเรียบร้อย", res.recordSequence, [
+            { text: "คำร้องขอออกนอกโรงเรียนถูกบันทึกลงระบบแล้ว" },
+          ]);
           loadLeaveRequests();
         } else {
           Swal.fire({
@@ -1426,13 +1801,9 @@
           bootstrap.Modal.getInstance(
             document.getElementById("letterModal"),
           ).hide();
-          Swal.fire({
-            icon: "success",
-            title: "สร้างร่างหนังสือเรียบร้อยแล้ว",
-            text: "บันทึกลำดับที่ " + (res.recordSequence || "-") + " · เลขที่ " + res.letterNo,
-            timer: 2000,
-            showConfirmButton: false,
-          });
+          showSaveSuccess("สร้างร่างหนังสือเรียบร้อย", res.recordSequence, [
+            { text: "เลขที่ " + res.letterNo },
+          ]);
           loadLetters();
         } else {
           Swal.fire({

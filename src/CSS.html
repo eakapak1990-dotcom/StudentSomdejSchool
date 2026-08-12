@@ -481,6 +481,157 @@
     color: var(--navy-900);
   }
 
+  /* ============ STUDENT PROFILE: SCORE CARDS (เริ่มต้น/หัก/คงเหลือ) ============ */
+  .score-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1.05rem 1.2rem 1.15rem;
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .score-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(21, 42, 82, 0.08);
+  }
+
+  .score-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+  }
+
+  .score-card .sc-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .score-card .sc-icn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .score-card .sc-lbl {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+
+  .score-card .sc-val {
+    font-family: "Prompt";
+    font-weight: 800;
+    font-size: 2.1rem;
+    line-height: 1.15;
+    margin-top: 0.45rem;
+  }
+
+  .sc-initial::before {
+    background: linear-gradient(90deg, var(--navy-700), var(--navy-900));
+  }
+
+  .sc-initial .sc-icn {
+    background: #e8ecf7;
+    color: var(--navy-800);
+  }
+
+  .sc-initial .sc-val {
+    color: var(--navy-900);
+  }
+
+  .sc-deducted::before {
+    background: linear-gradient(90deg, #e57373, var(--bad));
+  }
+
+  .sc-deducted .sc-icn {
+    background: #fbe9e7;
+    color: var(--bad);
+  }
+
+  .sc-deducted .sc-val {
+    color: var(--bad);
+  }
+
+  .sc-current::before {
+    background: linear-gradient(90deg, var(--gold-400), var(--gold-500));
+  }
+
+  .sc-current .sc-icn {
+    background: #fbf1de;
+    color: var(--warn);
+  }
+
+  .sc-current .sc-val {
+    color: var(--navy-900);
+  }
+
+  /* ============ STUDENT PROFILE: CONDUCT BANNER ============ */
+  .conduct-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-radius: 14px;
+    padding: 1.05rem 1.4rem;
+    color: #fff;
+  }
+
+  .conduct-banner .cb-icon {
+    font-size: 1.7rem;
+    flex-shrink: 0;
+  }
+
+  .conduct-banner .cb-title {
+    font-family: "Prompt";
+    font-weight: 700;
+    font-size: 1.3rem;
+    line-height: 1.2;
+  }
+
+  .conduct-banner .cb-sub {
+    font-size: 0.86rem;
+    opacity: 0.94;
+  }
+
+  .cb-excellent {
+    background: linear-gradient(120deg, var(--navy-950), var(--navy-800) 60%, var(--navy-700));
+    border: 1px solid rgba(201, 162, 39, 0.4);
+    box-shadow: 0 8px 20px rgba(21, 42, 82, 0.18);
+  }
+
+  .cb-excellent .cb-icon,
+  .cb-excellent .cb-title {
+    color: var(--gold-400);
+  }
+
+  .cb-excellent .cb-sub {
+    color: #dce3f1;
+  }
+
+  .cb-good {
+    background: linear-gradient(120deg, #1d7a52, #2e9d6f);
+  }
+
+  .cb-fair {
+    background: linear-gradient(120deg, #b57a1d, #d9a03c);
+  }
+
+  .cb-watch {
+    background: linear-gradient(120deg, #b23c30, #d05f52);
+  }
+
   .avatar-lg {
     width: 88px;
     height: 88px;

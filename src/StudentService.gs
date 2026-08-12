@@ -41,8 +41,9 @@ function api_getStudentDetail_(token, studentId) {
 
     const parent = findParentByStudentId_(studentId);
     const timeline = getStudentTimeline_(studentId);
+    const scoreSummary = getStudentScoreSummary_(studentId, student.CurrentScore);
 
-    return { success: true, student, parent, timeline };
+    return { success: true, student, parent, timeline, scoreSummary };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }
@@ -56,7 +57,7 @@ function api_addStudent_(token, payload) {
       return { success: false, message: 'คุณไม่มีสิทธิ์เพิ่มข้อมูลนักเรียน' };
     }
 
-    const required = ['firstName', 'lastName', 'citizenId', 'grade', 'room', 'no', 'dob'];
+    const required = ['studentId', 'firstName', 'lastName', 'citizenId', 'grade', 'room', 'no', 'dob'];
     const missing = required.filter(k => !payload[k] || String(payload[k]).trim() === '');
     if (missing.length > 0) {
       return { success: false, message: 'กรุณากรอกข้อมูลให้ครบ: ' + missing.join(', ') };
@@ -65,8 +66,20 @@ function api_addStudent_(token, payload) {
       return { success: false, message: 'เลขประจำตัวประชาชนต้องเป็นตัวเลข 13 หลัก' };
     }
 
+    // รหัสนักเรียน: กรอกเองได้ (ไม่สร้างอัตโนมัติ) ต้องไม่ซ้ำกับรายการเดิมในระบบ
+    const newId = String(payload.studentId).trim();
+    if (!/^[A-Za-z0-9\-_./]+$/.test(newId)) {
+      return { success: false, message: 'รหัสนักเรียนต้องเป็นตัวอักษร ตัวเลข หรือ - _ . / เท่านั้น' };
+    }
+    if (newId.length > 20) {
+      return { success: false, message: 'รหัสนักเรียนยาวเกินไป (สูงสุด 20 ตัวอักษร)' };
+    }
+    if (findStudentById_(newId)) {
+      return { success: false, message: 'รหัสนักเรียนนี้ถูกใช้งานแล้ว กรุณาใช้รหัสอื่น' };
+    }
+
     const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const newId = generateStudentId_();
+    const recordSequence = getNextRecordSequence_('student');
     const now = new Date();
     const educationPhase = getEducationPhase_(payload.grade);
 
@@ -91,7 +104,122 @@ function api_addStudent_(token, payload) {
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.STUDENTS, newId, '', 'เพิ่มนักเรียนใหม่: ' + payload.firstName + ' ' + payload.lastName);
     addTimelineEvent_(newId, 'create', 'เพิ่มข้อมูลนักเรียนเข้าระบบ', 'บันทึกโดย ' + session.fullName, session.fullName);
 
-    return { success: true, studentId: newId };
+    return { success: true, studentId: newId, recordSequence: recordSequence };
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+  }
+}
+
+/**
+ * นำเข้านักเรียนเป็นชุด (จาก Excel/CSV ที่ตรวจสอบฝั่ง client แล้ว)
+ * - ตรวจสอบความถูกต้องทีละแถว และบันทึกเฉพาะแถวที่ผ่าน (batch setValues เพื่อความเร็ว)
+ * - รหัสนักเรียนระบุเองในไฟล์ ต้องไม่ซ้ำกันในไฟล์และต้องไม่มีในระบบ
+ */
+function api_importStudents_(token, rows) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์นำเข้านักเรียน' };
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { success: false, message: 'ไม่มีข้อมูลนักเรียนให้นำเข้า' };
+    }
+    if (rows.length > 500) {
+      return { success: false, message: 'นำเข้าได้ครั้งละไม่เกิน 500 คน' };
+    }
+
+    const studentsSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
+    const parentsSheet = getSheet(CONFIG.SHEET_NAMES.PARENTS);
+    const now = new Date();
+    const seenIds = {}; // ป้องกันรหัสซ้ำภายในไฟล์เดียวกัน
+    const validRows = [];
+    const errors = [];
+
+    rows.forEach((row, idx) => {
+      const lineNo = idx + 2; // บรรทัดในไฟล์ (บรรทัด 1 = หัวคอลัมน์)
+      try {
+        row = row || {};
+        const newId = String(row.studentId || '').trim();
+        const missing = ['studentId', 'firstName', 'lastName', 'citizenId', 'grade', 'room', 'no', 'dob']
+          .filter(k => !row[k] || String(row[k]).trim() === '');
+        if (missing.length > 0) throw new Error('กรอกไม่ครบ: ' + missing.join(', '));
+        if (!/^[A-Za-z0-9\-_./]+$/.test(newId)) throw new Error('รหัสนักเรียนมีอักขระไม่ถูกต้อง');
+        if (newId.length > 20) throw new Error('รหัสนักเรียนยาวเกินไป');
+        if (!/^\d{13}$/.test(String(row.citizenId).trim())) throw new Error('เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
+        if (seenIds[newId]) throw new Error('รหัสนักเรียนซ้ำกันในไฟล์');
+        if (findStudentById_(newId)) throw new Error('รหัสนักเรียนนี้ถูกใช้งานแล้ว');
+
+        seenIds[newId] = true;
+        validRows.push({
+          studentId: newId,
+          phase: getEducationPhase_(row.grade),
+          firstName: String(row.firstName || '').trim(),
+          lastName: String(row.lastName || '').trim(),
+          parentName: String(row.parentName || '').trim(),
+          parentPhone: String(row.parentPhone || '').trim(),
+          row: row,
+          lineNo: lineNo
+        });
+      } catch (e) {
+        errors.push({
+          line: lineNo,
+          studentId: String((row || {}).studentId || '').trim() || '-',
+          message: e.message
+        });
+      }
+    });
+
+    if (validRows.length > 0) {
+      // --- เขียน Students แบบ batch ---
+      const studentRows = validRows.map(v => {
+        const p = v.row;
+        return [
+          v.studentId, String(p.citizenId || '').trim(), p.prefix || '', v.firstName, v.lastName,
+          p.gender || '', p.grade || '', p.room || '', p.no || '',
+          p.dob || '', p.weight || '', p.height || '', p.bloodType || '',
+          p.religion || '', p.ethnicity || '', p.nationality || '',
+          p.addressNo || '', p.addressMoo || '', p.addressRoad || '',
+          p.addressTambon || '', p.addressAmphoe || '', p.addressProvince || '',
+          CONFIG.SCORE.INITIAL_SCORE, v.phase, '', false, now, now
+        ];
+      });
+      studentsSheet.getRange(studentsSheet.getLastRow() + 1, 1, studentRows.length, studentRows[0].length)
+        .setValues(studentRows);
+
+      // --- เขียน Parents แบบ batch (เฉพาะแถวที่มีข้อมูลผู้ปกครอง) ---
+      const parentRows = validRows
+        .filter(v => v.parentName || v.parentPhone)
+        .map(v => {
+          const p = v.row;
+          return [
+            v.studentId, p.parentName || '', p.parentRelation || '', p.parentJob || '', p.parentPhone || '',
+            p.fatherName || '', p.fatherJob || '', p.motherName || '', p.motherJob || '', now
+          ];
+        });
+      if (parentRows.length > 0) {
+        parentsSheet.getRange(parentsSheet.getLastRow() + 1, 1, parentRows.length, parentRows[0].length)
+          .setValues(parentRows);
+      }
+
+      // --- เขียน Timeline แบบ batch ---
+      const tlRows = validRows.map(v => [
+        Utilities.getUuid(), v.studentId, 'create',
+        'เพิ่มข้อมูลนักเรียนเข้าระบบ (นำเข้าชุด)', 'นำเข้าโดย ' + session.fullName, session.fullName, now
+      ]);
+      const tlSheet = getSheet(CONFIG.SHEET_NAMES.TIMELINE);
+      tlSheet.getRange(tlSheet.getLastRow() + 1, 1, tlRows.length, tlRows[0].length).setValues(tlRows);
+
+      logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.STUDENTS, '', '',
+        'นำเข้านักเรียนเป็นชุด: สำเร็จ ' + validRows.length + ' คน, ข้าม ' + errors.length + ' รายการ');
+    }
+
+    return {
+      success: true,
+      imported: validRows.length,
+      failed: errors.length,
+      errors: errors.slice(0, 50)
+    };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }
@@ -320,23 +448,43 @@ function findParentByStudentId_(studentId) {
 }
 
 /**
- * สร้าง StudentID ใหม่ โดยสแกนหาเลขสูงสุดที่มีอยู่จริงในชีท
- * (ไม่ใช้ getLastRow() เพราะถ้ามีการลบแถวออก จะทำให้ได้เลขซ้ำกับของเดิม)
+ * สรุปคะแนนความประพฤติของนักเรียนสำหรับหน้าโปรไฟล์
+ * - initialScore : คะแนนเริ่มต้น (ตาม Config)
+ * - totalDeducted: คะแนนที่หักสุทธิ (หักลบกับคะแนนที่เพิ่มแล้ว) ไม่ต่ำกว่า 0
+ * - deductedCount: จำนวนครั้งที่ถูกหักคะแนน (ใช้ตัดสิน "ไม่มีประวัติการหักคะแนน")
+ * - currentScore : คะแนนคงเหลือปัจจุบัน
  */
-function generateStudentId_() {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-  const data = sheet.getDataRange().getValues();
+function getStudentScoreSummary_(studentId, currentScore) {
+  const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
+  const data = logSheet.getDataRange().getValues();
   const headers = data[0];
   const colId = headers.indexOf('StudentID');
+  const colType = headers.indexOf('Type');
+  const colAmount = headers.indexOf('Amount');
 
-  let maxNum = 10000;
+  let totalDeducted = 0;
+  let deductedCount = 0;
   for (let i = 1; i < data.length; i++) {
-    const id = String(data[i][colId] || '');
-    const num = parseInt(id.replace('STD', ''), 10);
-    if (!isNaN(num) && num > maxNum) maxNum = num;
+    if (data[i][colId] !== studentId) continue;
+    const type = data[i][colType];
+    const amount = Number(data[i][colAmount]) || 0;
+    if (type === 'deduct') {
+      totalDeducted += amount;
+      deductedCount++;
+    } else if (type === 'add') {
+      totalDeducted -= amount;
+    }
   }
-  return 'STD' + String(maxNum + 1).padStart(5, '0');
+  totalDeducted = Math.max(0, totalDeducted);
+
+  return {
+    initialScore: Number(CONFIG.SCORE.INITIAL_SCORE) || 100,
+    totalDeducted: totalDeducted,
+    deductedCount: deductedCount,
+    currentScore: Number(currentScore) || 0
+  };
 }
+
 
 function getEducationPhase_(grade) {
   if (['ม.1', 'ม.2', 'ม.3'].indexOf(grade) !== -1) return 'ม.ต้น';
@@ -362,9 +510,17 @@ function addTimelineEvent_(studentId, eventType, title, description, recordedBy)
 /**
  * ออกเลขลำดับสำหรับข้อความยืนยันหลังบันทึก
  * แยกตามปีการศึกษาและประเภทงาน โดยไม่กระทบ UUID หรือเลขหนังสือราชการเดิม
+ *
+ * หลักการ:
+ * - เก็บตัวนับไว้ใน Script Properties (ค่าระบบภายใน) ไม่แก้โครงสร้างชีต
+ * - ใช้ LockService ป้องกันเลขซ้ำเมื่อมีคนบันทึกพร้อมกัน
+ * - คีย์ตัวนับผูกกับปีการศึกษาปัจจุบัน (CURRENT_ACADEMIC_YEAR)
+ *   เมื่อขึ้นปีการศึกษาใหม่จะเริ่มนับใหม่โดยอัตโนมัติ
+ * - ครั้งแรกของแต่ละปี: นับจากจำนวนรายการที่บันทึกจริงในปีนั้น ๆ
+ *   เพื่อต่อเลขกับข้อมูลเดิมโดยไม่ซ้ำกัน
  */
 function getNextRecordSequence_(recordType) {
-  const validTypes = ['score', 'leave', 'letter'];
+  const validTypes = ['student', 'score', 'leave', 'letter'];
   if (validTypes.indexOf(recordType) === -1) {
     throw new Error('ประเภทรายการสำหรับออกเลขลำดับไม่ถูกต้อง');
   }
@@ -377,14 +533,16 @@ function getNextRecordSequence_(recordType) {
     const properties = PropertiesService.getScriptProperties();
     let lastSequence = Number(properties.getProperty(propertyKey));
 
-    // เปิดใช้ครั้งแรก: เริ่มต่อจากจำนวนข้อมูลเดิมในชีต เพื่อไม่ให้เลขซ้ำกับรายการเก่า
+    // ยังไม่เคยออกเลขในปีการศึกษานี้: นับรายการที่ถูกบันทึกในปีการศึกษาปัจจุบัน
+    // (ใช้ช่วงภาคเรียนจาก Config ถ้ากำหนดไว้; ไม่มี → นับทั้งชีตเป็นค่าปลอดภัย)
     if (!lastSequence) {
       const sheetByType = {
+        student: CONFIG.SHEET_NAMES.STUDENTS,
         score: CONFIG.SHEET_NAMES.SCORE_LOGS,
         leave: CONFIG.SHEET_NAMES.LEAVE_REQUESTS,
         letter: CONFIG.SHEET_NAMES.INVITATION_LETTERS
       };
-      lastSequence = Math.max(0, getSheet(sheetByType[recordType]).getLastRow() - 1);
+      lastSequence = countRecordsInAcademicYear_(sheetByType[recordType]);
     }
 
     const nextSequence = lastSequence + 1;
@@ -392,6 +550,45 @@ function getNextRecordSequence_(recordType) {
     return nextSequence;
   } finally {
     lock.releaseLock();
+  }
+}
+
+/**
+ * นับจำนวนรายการที่ถูกบันทึกภายในปีการศึกษาปัจจุบัน
+ * (อิงช่วงวัน SEMESTER_1_START → SEMESTER_2_END จาก Sheet Config)
+ * ถ้าไม่ได้กำหนดช่วงภาคเรียนไว้ ให้ใช้จำนวนแถวข้อมูลทั้งหมดในชีตแทน
+ */
+function countRecordsInAcademicYear_(sheetName) {
+  try {
+    const sheet = getSheet(sheetName);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    const start = parseConfigDate_(getConfigValue_('SEMESTER_1_START'), false);
+    const end = parseConfigDate_(getConfigValue_('SEMESTER_2_END'), true);
+    if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return Math.max(0, data.length - 1);
+    }
+
+    // คอลัมน์เวลา: ScoreLogs ใช้ Timestamp ส่วนชีตอื่นใช้ CreatedAt
+    const col = headers.indexOf('CreatedAt') !== -1 ? headers.indexOf('CreatedAt')
+      : headers.indexOf('Timestamp');
+    if (col === -1) return Math.max(0, data.length - 1);
+
+    let count = 0;
+    for (let i = 1; i < data.length; i++) {
+      const ts = data[i][col];
+      if (ts instanceof Date && ts.getTime() >= start.getTime() && ts.getTime() <= end.getTime()) {
+        count++;
+      }
+    }
+    return count;
+  } catch (e) {
+    try {
+      return Math.max(0, getSheet(sheetName).getLastRow() - 1);
+    } catch (e2) {
+      return 0;
+    }
   }
 }
 
@@ -445,6 +642,10 @@ function apiGetStudentDetail(token, studentId) {
 
 function apiAddStudent(token, payload) {
   return api_addStudent_(token, payload);
+}
+
+function apiImportStudents(token, rows) {
+  return api_importStudents_(token, rows);
 }
 
 function apiUpdateStudent(token, studentId, payload) {

@@ -24,6 +24,7 @@ function api_createLeaveRequest_(token, payload) {
 
    const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
     const requestId = Utilities.getUuid();
+    const recordSequence = getNextRecordSequence_('leave');
     const now = new Date();
     const nextRow = sheet.getLastRow() + 1;
 
@@ -45,7 +46,7 @@ function api_createLeaveRequest_(token, payload) {
 
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, '', 'สร้างคำร้อง: ' + studentName + ' - ' + reason);
 
-    return { success: true, requestId: requestId };
+    return { success: true, requestId: requestId, recordSequence: recordSequence };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }

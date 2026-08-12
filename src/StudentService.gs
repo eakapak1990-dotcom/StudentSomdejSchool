@@ -359,6 +359,42 @@ function addTimelineEvent_(studentId, eventType, title, description, recordedBy)
   ]);
 }
 
+/**
+ * ออกเลขลำดับสำหรับข้อความยืนยันหลังบันทึก
+ * แยกตามปีการศึกษาและประเภทงาน โดยไม่กระทบ UUID หรือเลขหนังสือราชการเดิม
+ */
+function getNextRecordSequence_(recordType) {
+  const validTypes = ['score', 'leave', 'letter'];
+  if (validTypes.indexOf(recordType) === -1) {
+    throw new Error('ประเภทรายการสำหรับออกเลขลำดับไม่ถูกต้อง');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const academicYear = String(getConfigValue_('CURRENT_ACADEMIC_YEAR') || '2569');
+    const propertyKey = 'RECORD_SEQUENCE_' + academicYear + '_' + recordType.toUpperCase();
+    const properties = PropertiesService.getScriptProperties();
+    let lastSequence = Number(properties.getProperty(propertyKey));
+
+    // เปิดใช้ครั้งแรก: เริ่มต่อจากจำนวนข้อมูลเดิมในชีต เพื่อไม่ให้เลขซ้ำกับรายการเก่า
+    if (!lastSequence) {
+      const sheetByType = {
+        score: CONFIG.SHEET_NAMES.SCORE_LOGS,
+        leave: CONFIG.SHEET_NAMES.LEAVE_REQUESTS,
+        letter: CONFIG.SHEET_NAMES.INVITATION_LETTERS
+      };
+      lastSequence = Math.max(0, getSheet(sheetByType[recordType]).getLastRow() - 1);
+    }
+
+    const nextSequence = lastSequence + 1;
+    properties.setProperty(propertyKey, String(nextSequence));
+    return nextSequence;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function getStudentTimeline_(studentId) {
   const sheet = getSheet(CONFIG.SHEET_NAMES.TIMELINE);
   const data = sheet.getDataRange().getValues();

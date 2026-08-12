@@ -100,6 +100,7 @@ function createLetterDraft_(studentId, detail, appointmentDate, appointmentTime,
 
   const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
   const letterId = Utilities.getUuid();
+  const recordSequence = getNextRecordSequence_('letter');
   const letterNo = manualNo ? buildLetterNo_(manualNo) : '';
   if (letterNo && isLetterNoInUse_(letterNo)) throw new Error('เลขที่หนังสือนี้ถูกใช้งานแล้ว');
   const now = new Date();
@@ -115,7 +116,7 @@ function createLetterDraft_(studentId, detail, appointmentDate, appointmentTime,
     detail + ' — นัดหมาย ' + appointmentDate + ' เวลา ' + appointmentTime + ' น. — LetterID: ' + letterId,
     createdByLabel || 'ระบบอัตโนมัติ');
 
-  return { letterId, letterNo, detail, appointmentDate, appointmentTime };
+  return { letterId, letterNo, detail, appointmentDate, appointmentTime, recordSequence };
 }
 
 function createAutoDraftLetter_(studentId, threshold, currentScore) {
@@ -144,7 +145,12 @@ function api_createLetter_(token, payload) {
     );
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.INVITATION_LETTERS, result.letterId, '', 'สร้างร่างหนังสือเชิญ: ' + result.letterNo);
 
-    return { success: true, letterId: result.letterId, letterNo: result.letterNo };
+    return {
+      success: true,
+      letterId: result.letterId,
+      letterNo: result.letterNo,
+      recordSequence: result.recordSequence
+    };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }

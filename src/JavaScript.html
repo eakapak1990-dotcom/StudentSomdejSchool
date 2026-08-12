@@ -1003,7 +1003,7 @@
             });
             return;
           }
-          let msg = `คะแนนคงเหลือ: ${res.newScore} คะแนน`;
+          let msg = `บันทึกลำดับที่ ${res.recordSequence || "-"}\nคะแนนคงเหลือ: ${res.newScore} คะแนน`;
           if (res.alertTriggered !== null && res.alertTriggered !== undefined) {
             msg += `\n⚠️ คะแนนลดถึงเกณฑ์ ${res.alertTriggered} คะแนน — ควรเชิญผู้ปกครอง`;
           }
@@ -1187,6 +1187,7 @@
           Swal.fire({
             icon: "success",
             title: "บันทึกคำร้องเรียบร้อยแล้ว",
+            text: "บันทึกลำดับที่ " + (res.recordSequence || "-"),
             timer: 1500,
             showConfirmButton: false,
           });
@@ -1428,7 +1429,7 @@
           Swal.fire({
             icon: "success",
             title: "สร้างร่างหนังสือเรียบร้อยแล้ว",
-            text: "เลขที่ " + res.letterNo,
+            text: "บันทึกลำดับที่ " + (res.recordSequence || "-") + " · เลขที่ " + res.letterNo,
             timer: 2000,
             showConfirmButton: false,
           });

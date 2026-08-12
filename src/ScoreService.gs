@@ -53,6 +53,7 @@ function api_addScore_(token, payload) {
     // บันทึกลง ScoreLogs
     const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
     const logId = Utilities.getUuid();
+    const recordSequence = getNextRecordSequence_('score');
     logSheet.appendRow([
       logId, studentId, type, amount, reason,
       session.userId, session.fullName, new Date(), phase
@@ -95,7 +96,8 @@ function api_addScore_(token, payload) {
       success: true,
       newScore: newScore,
       studentName: studentName,
-      alertTriggered: alertTriggered
+      alertTriggered: alertTriggered,
+      recordSequence: recordSequence
     };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };

@@ -1,7 +1,7 @@
 <style>
   :root {
     --navy-950: #0e1b33;
-    --navy-900: #152A52;
+    --navy-900: #152a52;
     --navy-800: #1c3768;
     --navy-700: #284a8a;
     --gold-500: #c9a227;
@@ -22,7 +22,7 @@
   }
 
   body {
-    font-family: 'Sarabun', sans-serif;
+    font-family: "Sarabun", sans-serif;
     background: var(--bg);
     color: var(--ink);
     margin: 0;
@@ -33,7 +33,7 @@
   h3,
   h4,
   .display-font {
-    font-family: 'Prompt', sans-serif;
+    font-family: "Prompt", sans-serif;
   }
 
   .brand-mark {
@@ -45,7 +45,7 @@
     align-items: center;
     justify-content: center;
     color: var(--navy-950);
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-weight: 800;
     font-size: 18px;
   }
@@ -53,7 +53,23 @@
   #loginScreen {
     min-height: 100vh;
     display: flex;
-    background: radial-gradient(circle at 15% 20%, rgba(201, 162, 39, .18), transparent 45%), radial-gradient(circle at 85% 80%, rgba(40, 74, 138, .35), transparent 50%), linear-gradient(155deg, var(--navy-950) 0%, var(--navy-900) 55%, var(--navy-800) 100%);
+    background:
+      radial-gradient(
+        circle at 15% 20%,
+        rgba(201, 162, 39, 0.18),
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at 85% 80%,
+        rgba(40, 74, 138, 0.35),
+        transparent 50%
+      ),
+      linear-gradient(
+        155deg,
+        var(--navy-950) 0%,
+        var(--navy-900) 55%,
+        var(--navy-800) 100%
+      );
   }
 
   .login-left {
@@ -66,9 +82,9 @@
   }
 
   .login-left .eyebrow {
-    letter-spacing: .14em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    font-size: .72rem;
+    font-size: 0.72rem;
     color: var(--gold-400);
     font-weight: 600;
   }
@@ -77,7 +93,7 @@
     font-size: clamp(2rem, 4vw, 3.2rem);
     font-weight: 700;
     line-height: 1.15;
-    margin: .6rem 0 1rem;
+    margin: 0.6rem 0 1rem;
   }
 
   .login-left p {
@@ -87,7 +103,7 @@
   }
 
   .login-right {
-    flex: .85;
+    flex: 0.85;
     background: #fff;
     display: flex;
     align-items: center;
@@ -103,13 +119,13 @@
   .login-card .form-control {
     background: #f6f7fb;
     border: 1px solid var(--line);
-    padding: .65rem .9rem;
+    padding: 0.65rem 0.9rem;
     border-radius: 10px;
   }
 
   .login-card .form-control:focus {
     border-color: var(--gold-500);
-    box-shadow: 0 0 0 3px rgba(201, 162, 39, .15);
+    box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
   }
 
   .btn-navy {
@@ -117,7 +133,7 @@
     color: #fff;
     border: none;
     border-radius: 10px;
-    padding: .65rem 1rem;
+    padding: 0.65rem 1rem;
     font-weight: 600;
   }
 
@@ -146,50 +162,50 @@
   .sidebar .brand {
     display: flex;
     align-items: center;
-    gap: .7rem;
+    gap: 0.7rem;
     padding: 1.3rem 1.1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .sidebar .brand .name {
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-weight: 600;
-    font-size: .92rem;
+    font-size: 0.92rem;
     color: #fff;
   }
 
   .sidebar .brand .sub {
-    font-size: .68rem;
+    font-size: 0.68rem;
     color: #8c96b3;
   }
 
   .nav-section-title {
-    font-size: .66rem;
+    font-size: 0.66rem;
     text-transform: uppercase;
-    letter-spacing: .1em;
+    letter-spacing: 0.1em;
     color: #5f6a8a;
-    padding: 1rem 1.1rem .35rem;
+    padding: 1rem 1.1rem 0.35rem;
   }
 
   .nav-link-custom {
     display: flex;
     align-items: center;
-    gap: .7rem;
-    padding: .62rem 1.1rem;
+    gap: 0.7rem;
+    padding: 0.62rem 1.1rem;
     color: #c3cbe0;
-    font-size: .88rem;
+    font-size: 0.88rem;
     border-left: 3px solid transparent;
     cursor: pointer;
     text-decoration: none;
   }
 
   .nav-link-custom:hover {
-    background: rgba(255, 255, 255, .05);
+    background: rgba(255, 255, 255, 0.05);
     color: #fff;
   }
 
   .nav-link-custom.active {
-    background: rgba(201, 162, 39, .12);
+    background: rgba(201, 162, 39, 0.12);
     color: #fff;
     border-left-color: var(--gold-500);
   }
@@ -197,10 +213,10 @@
   .sidebar .user-box {
     margin-top: auto;
     padding: 1rem 1.1rem;
-    border-top: 1px solid rgba(255, 255, 255, .08);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
-    gap: .6rem;
+    gap: 0.6rem;
   }
 
   .avatar-mini {
@@ -212,9 +228,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-weight: 700;
-    font-size: .85rem;
+    font-size: 0.85rem;
     flex-shrink: 0;
   }
 
@@ -229,7 +245,7 @@
     justify-content: space-between;
     margin-bottom: 1.4rem;
     flex-wrap: wrap;
-    gap: .7rem;
+    gap: 0.7rem;
   }
 
   .topbar h2 {
@@ -240,8 +256,8 @@
 
   .topbar .desc {
     color: var(--ink-soft);
-    font-size: .85rem;
-    margin-top: .15rem;
+    font-size: 0.85rem;
+    margin-top: 0.15rem;
   }
 
   .card-panel {
@@ -257,7 +273,7 @@
 
   .view.active {
     display: block;
-    animation: fadein .25s ease;
+    animation: fadein 0.25s ease;
   }
 
   @keyframes fadein {
@@ -297,7 +313,7 @@
 
     .sidebar {
       transform: translateX(-100%);
-      transition: .25s;
+      transition: 0.25s;
     }
 
     .sidebar.open {
@@ -317,10 +333,10 @@
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 12px;
-    padding: .55rem .9rem;
+    padding: 0.55rem 0.9rem;
     display: flex;
     align-items: center;
-    gap: .6rem;
+    gap: 0.6rem;
   }
 
   .search-box input {
@@ -328,13 +344,13 @@
     outline: none;
     flex: 1;
     background: transparent;
-    font-size: .9rem;
+    font-size: 0.9rem;
   }
 
   .badge-soft {
-    padding: .28rem .6rem;
+    padding: 0.28rem 0.6rem;
     border-radius: 20px;
-    font-size: .72rem;
+    font-size: 0.72rem;
     font-weight: 600;
   }
 
@@ -360,21 +376,21 @@
 
   table.custom-table {
     width: 100%;
-    font-size: .87rem;
+    font-size: 0.87rem;
   }
 
   table.custom-table thead th {
     color: var(--ink-soft);
     font-weight: 600;
-    font-size: .72rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
     border-bottom: 1px solid var(--line);
-    padding: .6rem .5rem;
+    padding: 0.6rem 0.5rem;
   }
 
   table.custom-table tbody td {
-    padding: .6rem .5rem;
+    padding: 0.6rem 0.5rem;
     border-bottom: 1px solid #f0f1f5;
     vertical-align: middle;
   }
@@ -388,13 +404,13 @@
   }
 
   .section-title {
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-weight: 600;
     font-size: 1.02rem;
-    margin-bottom: .9rem;
+    margin-bottom: 0.9rem;
     display: flex;
     align-items: center;
-    gap: .5rem;
+    gap: 0.5rem;
   }
 
   .section-title .bar {
@@ -406,7 +422,7 @@
   }
 
   .score-pill {
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-weight: 700;
     font-size: 2.4rem;
     color: var(--navy-900);
@@ -421,7 +437,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-weight: 700;
     font-size: 1.9rem;
   }
@@ -432,7 +448,7 @@
   }
 
   .timeline::before {
-    content: '';
+    content: "";
     position: absolute;
     left: 9px;
     top: 6px;
@@ -460,23 +476,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: .68rem;
+    font-size: 0.68rem;
     color: #fff;
     border: 3px solid var(--bg);
   }
 
   .tl-time {
-    font-size: .72rem;
+    font-size: 0.72rem;
     color: var(--ink-soft);
   }
 
   .tl-title {
     font-weight: 600;
-    font-size: .9rem;
+    font-size: 0.9rem;
   }
 
   .tl-desc {
-    font-size: .82rem;
+    font-size: 0.82rem;
     color: var(--ink-soft);
   }
 
@@ -493,9 +509,9 @@
   }
 
   .chip-tab {
-    padding: .4rem .9rem;
+    padding: 0.4rem 0.9rem;
     border-radius: 9px;
-    font-size: .83rem;
+    font-size: 0.83rem;
     border: 1px solid var(--line);
     background: #fff;
     cursor: pointer;
@@ -534,17 +550,157 @@
   }
 
   .stat-card .val {
-    font-family: 'Prompt';
+    font-family: "Prompt";
     font-size: 1.7rem;
     font-weight: 700;
-    margin: .5rem 0 0;
+    margin: 0.5rem 0 0;
   }
 
   .stat-card .lbl {
     color: var(--ink-soft);
-    font-size: .8rem;
+    font-size: 0.8rem;
   }
-  canvas { max-width: 100%; }
-.action-btn-group { display: flex; gap: .35rem; justify-content: flex-end; }
-.action-btn-group .btn { padding: .25rem .55rem; font-size: .85rem; }
+
+  canvas {
+    max-width: 100%;
+  }
+
+  .action-btn-group {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+  }
+
+  .action-btn-group .btn {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.85rem;
+  }
+  /* ============ REPORTS: STAT CARDS MODERN ============ */
+  .stat-card-modern {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    padding: 1.2rem 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .stat-card-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(21, 42, 82, 0.08);
+  }
+  .stat-card-modern .stat-icn {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+
+  /* ============ REPORTS: SUB VIEW TOGGLE ============ */
+  .report-subview {
+    display: none;
+  }
+  .report-subview.active {
+    display: block;
+    animation: fadein 0.2s ease;
+  }
+  .stat-card-modern.stat-good .stat-icn {
+    background: #4f8868;
+    color: var(--good);
+  }
+  .stat-card-modern.stat-bad .stat-icn {
+    background: #fbe9e7;
+    color: var(--bad);
+  }
+  .stat-card-modern.stat-navy .stat-icn {
+    background: #e8ecf7;
+    color: var(--navy-800);
+  }
+  .stat-card-modern .stat-val {
+    font-family: "Prompt";
+    font-weight: 700;
+    font-size: 1.6rem;
+    color: var(--ink);
+    line-height: 1.1;
+  }
+  .stat-card-modern .stat-lbl {
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    margin-top: 0.15rem;
+  }
+
+  /* ============ REPORTS: RANK LIST ============ */
+  .rank-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .rank-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 12px;
+    background: #f8f9fc;
+    border: 1px solid var(--line);
+  }
+  .rank-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Prompt";
+    font-weight: 700;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    background: var(--navy-900);
+    color: #fff;
+  }
+  .rank-item:nth-child(1) .rank-num {
+    background: linear-gradient(155deg, var(--gold-400), var(--gold-500));
+    color: var(--navy-950);
+  }
+  .rank-item:nth-child(2) .rank-num {
+    background: #b9c2d6;
+    color: var(--navy-950);
+  }
+  .rank-item:nth-child(3) .rank-num {
+    background: #cf9a5c;
+    color: #fff;
+  }
+  .rank-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .rank-name {
+    font-weight: 600;
+    font-size: 0.87rem;
+  }
+  .rank-sub {
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+  }
+  .rank-score {
+    font-family: "Prompt";
+    font-weight: 700;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+  .rank-empty {
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    padding: 2rem 0;
+  }
 </style>

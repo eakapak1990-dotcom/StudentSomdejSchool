@@ -218,7 +218,7 @@
       `;
       return `
       <tr class="student-row" onclick="openProfile('${st.StudentID}')">
-        
+        <td>${renderAvatarHtml(st.PhotoFileID, (st.FirstName || '-')[0], 'avatar-mini')}</td> 
         <td>${fullName}<div class="text-secondary" style="font-size:.72rem">${st.StudentID}</div></td>
         <td>${st.StudentID}</td>
         <td>${st.Grade || '-'} / ${st.Room || '-'} เลขที่ ${st.No || '-'}</td>
@@ -398,7 +398,7 @@
   <div class="row g-3">
     <div class="col-lg-4">
       <div class="card-panel text-center">
-        <div class="avatar-lg mx-auto mb-3">${(st.FirstName || '-')[0]}${(st.LastName || '-')[0]}</div>
+        ${renderAvatarHtml(st.PhotoFileID, (st.FirstName || '-')[0] + (st.LastName || '-')[0], 'avatar-lg mx-auto mb-3')}
         <h4 class="mb-0">${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</h4>
         <div class="text-secondary small mb-3">${st.StudentID} · ${st.Grade}/${st.Room} เลขที่ ${st.No}</div>
         <div class="score-pill mb-0" style="color:${st.CurrentScore < 70 ? 'var(--bad)' : 'var(--navy-900)'}">${st.CurrentScore}</div>
@@ -653,7 +653,7 @@
     box.innerHTML = `
       <div class="d-flex align-items-center gap-2">
         ${renderAvatarHtml(st.PhotoFileID, (st.FirstName || '-')[0], 'avatar-mini')}
-        <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">คะแนนคงเหลือ ${st.CurrentScore} คะแนน (${st.EducationPhase || '-'})</span></div>
+        <div class="flex-fill small"><b>${st.Prefix || ''}${st.FirstName || ''} ${st.LastName || ''}</b> · ${st.StudentID}<br><span class="text-secondary">คะแนนคงเหลือ ${st.CurrentScore} คะแนน</span></div>
         <i class="bi bi-x-lg" style="cursor:pointer" onclick="clearScoreStudent()"></i>
       </div>`;
     document.getElementById('scoreStudentResults').innerHTML = '';

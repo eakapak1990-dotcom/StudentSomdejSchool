@@ -832,8 +832,13 @@
     function doBind() {
       const studentId = $("bind_studentId").value.trim();
       const phone = $("bind_phone").value.trim();
-      if (!studentId || !phone) {
+      const pin = $("bind_pin").value.trim();
+      if (!studentId || !phone || !pin) {
         Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
+        return;
+      }
+      if (!/^\d{4,6}$/.test(pin)) {
+        Swal.fire({ icon: "warning", title: "รหัส PIN ต้องเป็นตัวเลข 4–6 หลัก" });
         return;
       }
       Swal.fire({
@@ -860,12 +865,13 @@
             });
             $("bind_studentId").value = "";
             $("bind_phone").value = "";
+            $("bind_pin").value = "";
             loadMyStudents(true);
           })
           .withFailureHandler(function (err) {
             Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
           })
-          .apiLiffBind(lineUserId, studentId, phone);
+          .apiLiffBind(lineUserId, studentId, phone, pin);
       });
     }
 

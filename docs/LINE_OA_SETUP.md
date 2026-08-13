@@ -19,6 +19,23 @@
 
 ---
 
+## สถานะการตั้งค่าปัจจุบันของโรงเรียนนี้ (อัปเดตล่าสุด)
+
+| ขั้นตอน | สถานะ |
+|---|---|
+| 1. สร้าง LINE OA | ✅ เสร็จ — OA `student_affairs` (เบสิค ID `@374rpwus`) |
+| 2. Messaging API channel + เชื่อม OA | ✅ เสร็จ — Channel ID `2011084567` |
+| 2.6 Channel Access Token | ✅ ได้ token แล้ว → **ขั้นตอนถัดไป: ใส่ในหน้า LINE ของระบบ** |
+| 3. สร้าง LIFF app | ⏳ **ยังไม่ทำ — ทำเป็นขั้นตอนถัดไป** (ต้องสร้างใน LINE Login channel — ดูข้อ 3 ด้านล่าง) |
+| 4. Deploy Web App | ✅ เสร็จ — v46 (Anyone แบบไม่ล็อกอิน Google) |
+| 5. ใส่ Token + LIFF ID ในหน้า LINE | ⏳ รอ LIFF ID จากข้อ 3 |
+| 6. จุดเข้าใช้งาน (เมนู/QR) | ⏳ รอ LIFF URL |
+| 7. ผู้ปกครองผูกบัญชี + ทดสอบ | ⏳ รอข้อ 5–6 |
+
+**ลำดับที่เหลือ:** ข้อ 3 (สร้าง LIFF) → ข้อ 5 (ใส่ค่าในระบบ + ทดสอบส่ง) → ข้อ 6 (เมนู/QR) → ข้อ 7 (ผูกบัญชีทดสอบจริง)
+
+---
+
 ## ขั้นตอนที่ 1: สร้าง LINE Official Account (LINE OA)
 
 1. เปิดเว็บ https://manager.line.biz/ แล้วเข้าสู่ระบบด้วยบัญชี LINE ส่วนตัว
@@ -35,7 +52,8 @@
 
 ## ขั้นตอนที่ 2: สร้าง Messaging API Channel (LINE Developers)
 
-Messaging API คือตัวกลางที่ให้ระบบส่งข้อความ (push) ถึงผู้ปกครอง และโฮสต์หน้า LIFF
+Messaging API คือตัวกลางที่ให้ระบบส่งข้อความ (push) ถึงผู้ปกครอง
+(ส่วนหน้า LIFF สร้างแยกใน LINE Login channel — ดูขั้นตอนที่ 3)
 
 1. เปิด https://developers.line.biz/console/ → เข้าสู่ระบบด้วย **บัญชี LINE เดียวกับ OA** ในขั้นตอนที่ 1
 2. สร้าง **Provider** (ชื่ออะไรก็ได้ เช่น `School Provider`) → กด Create
@@ -69,21 +87,33 @@ Messaging API คือตัวกลางที่ให้ระบบส่
 
 ## ขั้นตอนที่ 3: สร้าง LIFF App (หน้าให้ผู้ปกครอง)
 
-1. ใน channel เดียวกัน (Messaging API) → แท็บ **LIFF**
-2. กด **Add** (สร้าง LIFF app)
+> ⚠️ **นโยบาย LINE เปลี่ยนแล้ว (2023–2025):** LIFF app สร้างได้เฉพาะใน
+> **LINE Login channel** เท่านั้น — สร้างใน Messaging API channel ไม่ได้อีกต่อไป
+> (LINE แนะนำให้สร้างเป็น LINE MINI App ในอนาคต แต่ LIFF ยังใช้งานได้ตามปกติ)
+
+1. เปิด https://developers.line.biz/console/ → เลือก **LINE Login channel**
+   > 💡 ของโรงเรียนนี้ใช้ channel `student-affairs` (ประเภท LINE Login) ที่สร้างไว้แล้ว
+   > — ถ้ายังไม่มี ให้สร้าง channel ใหม่ประเภท **LINE Login** ก่อน
+2. ใน channel นั้น → แท็บ **LIFF** → กด **Add**
 3. กรอก:
-   - **App name**: เช่น `ระบบผู้ปกครอง`
+   - **LIFF app name**: เช่น `ระบบผู้ปกครอง`
    - **Size**: เลือก **Full** (ใช้พื้นที่เต็มจอ)
    - **Endpoint URL**: ใส่ URL Web App ของระบบ + `?page=liff`
      ```
      https://script.google.com/macros/s/AKfycb.../exec?page=liff
      ```
      > ต้องเป็น **https** เท่านั้น และลงท้าย `?page=liff` พอดี (ระบบ route หน้านี้ใน `doGet`)
+   - **Scopes**: ติ๊ก **`openid`** อย่างน้อย — โค้ด Liff.html ใช้ `liff.getDecodedIDToken()`
+     อ่าน LINE userId ต้องมี scope นี้ (`profile` ใส่เพิ่มได้ แต่หน้า LIFF ของระบบไม่ได้ใช้)
 4. กด **Add** → จะได้:
    - **LIFF ID** (เช่น `2001234567-abc123` หรือ `1234-abcdef`)
    - **LIFF URL** (เช่น `https://liff.line.me/1234-abcdef`)
 5. คัดลอก **LIFF ID** ไว้ — ใส่ในหน้า LINE ของระบบในขั้นตอนที่ 5
    > ผู้ปกครองสามารถเปิดได้ทั้ง LIFF URL หรือผ่านเมนู/QR ของ OA (ขั้นตอนที่ 6)
+
+> 💡 **การ push ข้อความกับ LIFF แยกกันคนละ channel:** push ใช้ Messaging API channel
+> (ขั้นตอนที่ 2) ส่วน LIFF ใช้ LINE Login channel — ไม่ยุ่งเกี่ยวกัน ระบบของเราอ่าน
+> LIFF ID จากหน้า LINE ของระบบเท่านั้น
 
 ---
 
@@ -226,6 +256,12 @@ LINE Messaging API (Channel Access Token) ──► push ถึงผู้ป�
                                   ──► แจ้งลาออก / เปลี่ยน PIN / ยกเลิกการเชื่อม
 ```
 
-Chanal_ID 2011084567
-Chanal_Secreat d02c544ef6e5886f62f0c0365052cf81
-Channel access token (long-lived)ENzHQ0XQT1O7vRRZ9KopabWQiaOGFyreLukr4nINfEYA3tCqDO3MYO4pZvYYq2PBe8lHMG2i7moHMWAwQXzNQplOJTmIzV+wFRR7+8dyiW3b5j0KgnN2tBXv0tans6Tl5NkZL0BHEw0TDu9H7cG/fgdB04t89/1O/w1cDnyilFU=
+## ⚠️ ห้ามเก็บ Token/Secret ลงในไฟล์ repo (สำคัญมาก)
+
+Channel ID / Channel Secret / Channel Access Token คือ **ความลับ** — ถ้าเผลอ commit
+แล้ว push ขึ้น GitHub (โดยเฉพาะ repo สาธารณะ) คนอื่นจะใช้ token ของคุณส่งข้อความ
+(เปลืองโควต้า) หรือแอบอ้างระบบได้
+
+**ถ้าเคยเผลอใส่ไว้ในไฟล์ที่ push แล้ว:** ให้ **Reissue** token ใหม่ทันที
+(LINE Developers → Messaging API → Channel access token → Issue ใหม่) แล้ววางค่าใหม่
+ในหน้า LINE ของระบบ — token เก่าจะถูกยกเลิกทันที

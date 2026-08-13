@@ -474,6 +474,13 @@ function verifyLiffBinding_(lineUserId, studentId) {
  * ผูกบัญชี LINE กับนักเรียน โดยยืนยันเบอร์โทรผู้ปกครอง + ตั้งรหัส PIN ส่วนตัว
  * (PIN ใช้ยืนยันการยกเลิกการเชื่อมต่อ/เปลี่ยน PIN — ความปลอดภัยชั้นที่ 2)
  */
+/** เบอร์โทรไทย: ป้องกันเลข 0 หน้าหายตอนนำเข้าจาก Excel (825633030 → 0825633030) */
+function normalizePhone_(p) {
+  let s = String(p == null ? '' : p).trim().replace(/[-\s]/g, '');
+  if (/^[89]\d{8}$/.test(s)) s = '0' + s; // 9 หลักขึ้นต้น 8/9 = เบอร์มือถือไทยที่เลข 0 หน้าหาย
+  return s;
+}
+
 function apiLiffBind(lineUserId, studentId, parentPhone, pin) {
   try {
     if (!lineUserId || !studentId || !parentPhone || !pin) {
@@ -489,8 +496,8 @@ function apiLiffBind(lineUserId, studentId, parentPhone, pin) {
     if (!parent || !parent.ParentPhone) {
       return { success: false, message: 'ไม่พบข้อมูลเบอร์โทรผู้ปกครองของนักเรียนคนนี้ในระบบ' };
     }
-    const inputPhone = String(parentPhone).trim().replace(/[-\s]/g, '');
-    const storedPhone = String(parent.ParentPhone).replace(/[-\s]/g, '');
+    const inputPhone = normalizePhone_(parentPhone);
+    const storedPhone = normalizePhone_(parent.ParentPhone);
     if (inputPhone !== storedPhone) {
       return { success: false, message: 'เบอร์โทรศัพท์ไม่ตรงกับข้อมูลผู้ปกครองของนักเรียนคนนี้' };
     }

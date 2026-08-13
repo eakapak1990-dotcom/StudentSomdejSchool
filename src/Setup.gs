@@ -82,11 +82,39 @@ function setupAllSheets() {
     ]);
   }
 
+  // แก้เบอร์โทรเดิมที่เลข 0 หน้าหาย + ตั้งคอลัมน์ ParentPhone เป็นข้อความ
+  migrateFixParentPhones_();
+
   SpreadsheetApp.getUi().alert(
     'ตั้งค่า Sheet ทั้งหมดเรียบร้อยแล้ว!\n\n' +
     'Username: admin\nPassword: Admin@1234\n\n' +
     '⚠️ กรุณาเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก'
   );
+}
+
+/**
+ * แก้ข้อมูลเบอร์โทรเดิมที่เลข 0 หน้าหาย (เช่น 825633030 → 0825633030)
+ * และตั้งคอลัมน์ ParentPhone เป็นรูปแบบข้อความ — กัน Google Sheets แปลงเบอร์เป็นตัวเลข
+ * รันได้ซ้ำ (idempotent) — เบอร์ที่ถูกต้องแล้วจะไม่ถูกแตะ
+ */
+function migrateFixParentPhones_() {
+  const pSheet = getSheet(CONFIG.SHEET_NAMES.PARENTS);
+  const data = pSheet.getDataRange().getValues();
+  const headers = data[0];
+  const col = headers.indexOf('ParentPhone');
+  if (col === -1) return;
+  ensurePhoneTextFormat_(pSheet);
+  let fixed = 0;
+  for (let i = 1; i < data.length; i++) {
+    const raw = data[i][col];
+    if (raw === '' || raw == null) continue;
+    const norm = normalizePhone_(raw);
+    if (String(raw) !== norm) {
+      pSheet.getRange(i + 1, col + 1).setValue(norm);
+      fixed++;
+    }
+  }
+  Logger.log('migrateFixParentPhones_: แก้เบอร์โทรแล้ว ' + fixed + ' รายการ');
 }
 
 /**

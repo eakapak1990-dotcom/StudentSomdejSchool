@@ -49,6 +49,15 @@ function api_getStudentDetail_(token, studentId) {
   }
 }
 
+/** ตั้งคอลัมน์ ParentPhone เป็นรูปแบบข้อความ — กัน Google Sheets แปลงเบอร์เป็นตัวเลข (เลข 0 หน้าหาย) */
+function ensurePhoneTextFormat_(pSheet) {
+  const headers = pSheet.getRange(1, 1, 1, pSheet.getLastColumn()).getValues()[0];
+  const col = headers.indexOf('ParentPhone');
+  if (col === -1) return;
+  const lastRow = Math.max(pSheet.getLastRow(), 2);
+  pSheet.getRange(2, col + 1, Math.max(lastRow - 1, 1), 1).setNumberFormat('@');
+}
+
 function api_addStudent_(token, payload) {
   try {
     const session = validateSession_(token);
@@ -97,9 +106,10 @@ function api_addStudent_(token, payload) {
     // บันทึกข้อมูลผู้ปกครอง
     const parentSheet = getSheet(CONFIG.SHEET_NAMES.PARENTS);
     parentSheet.appendRow([
-      newId, payload.parentName || '', payload.parentRelation || '', payload.parentJob || '', payload.parentPhone || '',
+      newId, payload.parentName || '', payload.parentRelation || '', payload.parentJob || '', normalizePhone_(payload.parentPhone || ''),
       payload.fatherName || '', payload.fatherJob || '', payload.motherName || '', payload.motherJob || '', now
     ]);
+    ensurePhoneTextFormat_(parentSheet);
 
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.STUDENTS, newId, '', 'เพิ่มนักเรียนใหม่: ' + payload.firstName + ' ' + payload.lastName);
     addTimelineEvent_(newId, 'create', 'เพิ่มข้อมูลนักเรียนเข้าระบบ', 'บันทึกโดย ' + session.fullName, session.fullName);
@@ -193,13 +203,14 @@ function api_importStudents_(token, rows) {
         .map(v => {
           const p = v.row;
           return [
-            v.studentId, p.parentName || '', p.parentRelation || '', p.parentJob || '', p.parentPhone || '',
+            v.studentId, p.parentName || '', p.parentRelation || '', p.parentJob || '', normalizePhone_(p.parentPhone || ''),
             p.fatherName || '', p.fatherJob || '', p.motherName || '', p.motherJob || '', now
           ];
         });
       if (parentRows.length > 0) {
         parentsSheet.getRange(parentsSheet.getLastRow() + 1, 1, parentRows.length, parentRows[0].length)
           .setValues(parentRows);
+        ensurePhoneTextFormat_(parentsSheet);
       }
 
       // --- เขียน Timeline แบบ batch ---
@@ -293,7 +304,11 @@ function api_updateStudent_(token, studentId, payload) {
           Object.keys(parentFieldMap).forEach(key => {
             if (payload[key] !== undefined) {
               const col = pHeaders.indexOf(parentFieldMap[key]);
-              if (col !== -1) pSheet.getRange(i + 1, col + 1).setValue(payload[key]);
+              if (col !== -1) {
+                let val = payload[key];
+                if (key === 'parentPhone') val = normalizePhone_(val);
+                pSheet.getRange(i + 1, col + 1).setValue(val);
+              }
             }
           });
           pSheet.getRange(i + 1, pHeaders.indexOf('UpdatedAt') + 1).setValue(new Date());
@@ -306,11 +321,12 @@ function api_updateStudent_(token, studentId, payload) {
       if (!parentFound) {
         pSheet.appendRow([
           studentId,
-          payload.parentName || '', payload.parentRelation || '', payload.parentJob || '', payload.parentPhone || '',
+          payload.parentName || '', payload.parentRelation || '', payload.parentJob || '', normalizePhone_(payload.parentPhone || ''),
           payload.fatherName || '', payload.fatherJob || '', payload.motherName || '', payload.motherJob || '',
           new Date()
         ]);
       }
+      ensurePhoneTextFormat_(pSheet);
     }
 
     return { success: true };

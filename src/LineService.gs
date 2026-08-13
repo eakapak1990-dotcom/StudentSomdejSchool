@@ -477,7 +477,8 @@ function verifyLiffBinding_(lineUserId, studentId) {
 /** เบอร์โทรไทย: ป้องกันเลข 0 หน้าหายตอนนำเข้าจาก Excel (825633030 → 0825633030) */
 function normalizePhone_(p) {
   let s = String(p == null ? '' : p).trim().replace(/[-\s]/g, '');
-  if (/^[89]\d{8}$/.test(s)) s = '0' + s; // 9 หลักขึ้นต้น 8/9 = เบอร์มือถือไทยที่เลข 0 หน้าหาย
+  if (/^[89]\d{8}$/.test(s)) s = '0' + s;       // มือถือ 9 หลัก (เลข 0 หน้าหายตอนนำเข้า Excel)
+  else if (/^[2-7]\d{7}$/.test(s)) s = '0' + s; // เบอร์บ้าน 8 หลัก (เลข 0 หน้าหาย)
   return s;
 }
 

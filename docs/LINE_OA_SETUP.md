@@ -26,7 +26,7 @@
 | 1. สร้าง LINE OA | ✅ เสร็จ — OA `student_affairs` (เบสิค ID `@374rpwus`) |
 | 2. Messaging API channel + เชื่อม OA | ✅ เสร็จ — Channel ID `2011084567` |
 | 2.6 Channel Access Token | ✅ ได้ token แล้ว → **ขั้นตอนถัดไป: ใส่ในหน้า LINE ของระบบ** |
-| 3. สร้าง LIFF app | ⏳ **ยังไม่ทำ — ทำเป็นขั้นตอนถัดไป** (ต้องสร้างใน LINE Login channel — ดูข้อ 3 ด้านล่าง) |
+| 3. สร้าง LIFF app | ⏳ ยังไม่ทำ — ต้องสร้าง LINE Login channel ใหม่ (ตัวเก่าถูกลบแล้ว) ใน **provider เดียวกับ Messaging API** — ดูข้อ 3 |
 | 4. Deploy Web App | ✅ เสร็จ — v46 (Anyone แบบไม่ล็อกอิน Google) |
 | 5. ใส่ Token + LIFF ID ในหน้า LINE | ⏳ รอ LIFF ID จากข้อ 3 |
 | 6. จุดเข้าใช้งาน (เมนู/QR) | ⏳ รอ LIFF URL |
@@ -91,10 +91,17 @@ Messaging API คือตัวกลางที่ให้ระบบส่
 > **LINE Login channel** เท่านั้น — สร้างใน Messaging API channel ไม่ได้อีกต่อไป
 > (LINE แนะนำให้สร้างเป็น LINE MINI App ในอนาคต แต่ LIFF ยังใช้งานได้ตามปกติ)
 
-1. เปิด https://developers.line.biz/console/ → เลือก **LINE Login channel**
-   > 💡 ของโรงเรียนนี้ใช้ channel `student-affairs` (ประเภท LINE Login) ที่สร้างไว้แล้ว
-   > — ถ้ายังไม่มี ให้สร้าง channel ใหม่ประเภท **LINE Login** ก่อน
-2. ใน channel นั้น → แท็บ **LIFF** → กด **Add**
+1. เปิด https://developers.line.biz/console/ → **สร้าง LINE Login channel ใหม่**
+   > ⚠️ **สำคัญที่สุด:** ต้องสร้างใน **Provider เดียวกับ Messaging API channel**
+   > (ID `2011084567`) — LINE กำหนด userId ให้ผู้ใช้คนละค่า**ตาม provider** ถ้า
+   > LIFF อยู่คนละ provider กับ OA ที่ push ข้อความ จะ push ไม่เจอผู้รับ
+   > (ผู้ปกครองผูกได้ แต่ไม่ได้รับข้อความ)
+   - Providers → คลิก provider ที่มี channel ID `2011084567` → แท็บ **Channels**
+     → **Create a new channel** → เลือกประเภท **LINE Login**
+   - กรอก: **Region = Thailand**, **Channel name** (เช่น `ระบบผู้ปกครอง` — ห้ามมีคำว่า LINE),
+     **Channel description**, **App types = Web app**, **Email address** → ติ๊กยอมรับ → **Create**
+   - (ไม่ต้องกรอก Callback URL — ระบบของเราใช้ LIFF อย่างเดียว ไม่ใช้ LINE Login OAuth)
+2. ใน channel ใหม่นั้น → แท็บ **LIFF** → กด **Add**
 3. กรอก:
    - **LIFF app name**: เช่น `ระบบผู้ปกครอง`
    - **Size**: เลือก **Full** (ใช้พื้นที่เต็มจอ)
@@ -112,8 +119,9 @@ Messaging API คือตัวกลางที่ให้ระบบส่
    > ผู้ปกครองสามารถเปิดได้ทั้ง LIFF URL หรือผ่านเมนู/QR ของ OA (ขั้นตอนที่ 6)
 
 > 💡 **การ push ข้อความกับ LIFF แยกกันคนละ channel:** push ใช้ Messaging API channel
-> (ขั้นตอนที่ 2) ส่วน LIFF ใช้ LINE Login channel — ไม่ยุ่งเกี่ยวกัน ระบบของเราอ่าน
-> LIFF ID จากหน้า LINE ของระบบเท่านั้น
+> (ขั้นตอนที่ 2) ส่วน LIFF ใช้ LINE Login channel — แต่**ต้องอยู่ provider เดียวกัน**
+> ไม่งั้น userId ที่ LIFF อ่านได้จะไม่ตรงกับที่ OA ใช้ push (ผูกได้แต่ส่งไม่ถึง)
+> ระบบของเราอ่าน LIFF ID จากหน้า LINE ของระบบเท่านั้น
 
 ---
 

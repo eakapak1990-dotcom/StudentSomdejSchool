@@ -96,8 +96,8 @@ Messaging API คือตัวกลางที่ให้ระบบส่
    > (ID `2011084567`) — LINE กำหนด userId ให้ผู้ใช้คนละค่า**ตาม provider** ถ้า
    > LIFF อยู่คนละ provider กับ OA ที่ push ข้อความ จะ push ไม่เจอผู้รับ
    > (ผู้ปกครองผูกได้ แต่ไม่ได้รับข้อความ)
-   - Providers → คลิก provider ที่มี channel ID `2011084567` → แท็บ **Channels**
-     → **Create a new channel** → เลือกประเภท **LINE Login**
+   - Providers → คลิก **`student-affairs-system`** (provider ที่มี channel ID `2011084567`)
+     → แท็บ **Channels** → **Create a new channel** → เลือกประเภท **LINE Login**
    - กรอก: **Region = Thailand**, **Channel name** (เช่น `ระบบผู้ปกครอง` — ห้ามมีคำว่า LINE),
      **Channel description**, **App types = Web app**, **Email address** → ติ๊กยอมรับ → **Create**
    - (ไม่ต้องกรอก Callback URL — ระบบของเราใช้ LIFF อย่างเดียว ไม่ใช้ LINE Login OAuth)

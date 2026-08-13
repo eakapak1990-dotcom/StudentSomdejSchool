@@ -758,10 +758,25 @@
       liff
         .init({ liffId: LIFF_ID })
         .then(function () {
-          const idToken = liff.getDecodedIDToken();
-          lineUserId = idToken && idToken.sub;
+          // อ่าน LINE userId: ใช้ ID token (scope openid) ก่อน ถ้าไม่มีค่อยดึง profile (scope profile)
+          return new Promise(function (resolve) {
+            let uid = null;
+            try {
+              const idToken = liff.getDecodedIDToken && liff.getDecodedIDToken();
+              uid = idToken && idToken.sub;
+            } catch (e) { /* ไม่ได้ติ๊ก scope openid */ }
+            if (uid) { resolve(uid); return; }
+            liff.getProfile().then(function (p) {
+              resolve(p && p.userId);
+            }).catch(function () {
+              resolve(null);
+            });
+          });
+        })
+        .then(function (uid) {
+          lineUserId = uid;
           if (!lineUserId) {
-            showStatus("ไม่สามารถระบุตัวตนบัญชี LINE ได้", true);
+            showStatus("ไม่สามารถระบุตัวตนบัญชี LINE ได้ — กรุณาเปิดผ่านแอป LINE (ลิงก์นี้ใช้ในแอป LINE เท่านั้น)", true);
             return;
           }
           showStatus("เชื่อมต่อ LINE แล้ว — สวัสดีครับคุณพ่อคุณแม่");

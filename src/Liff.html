@@ -760,30 +760,31 @@
         .then(function () {
           // อ่าน LINE userId: ใช้ ID token (scope openid) ก่อน ถ้าไม่มีค่อยดึง profile (scope profile)
           return new Promise(function (resolve) {
-            let uid = null;
+            let uid = null, via = '';
             try {
               const idToken = liff.getDecodedIDToken && liff.getDecodedIDToken();
               uid = idToken && idToken.sub;
-            } catch (e) { /* ไม่ได้ติ๊ก scope openid */ }
-            if (uid) { resolve(uid); return; }
+              if (uid) via = 'idToken';
+            } catch (e) { via = 'idToken-error'; }
+            if (uid) { resolve({ uid: uid, via: via }); return; }
             liff.getProfile().then(function (p) {
-              resolve(p && p.userId);
+              resolve({ uid: p && p.userId, via: 'profile' });
             }).catch(function () {
-              resolve(null);
+              resolve({ uid: null, via: 'profile-error' });
             });
           });
         })
-        .then(function (uid) {
-          lineUserId = uid;
+        .then(function (r) {
+          lineUserId = r.uid;
           if (!lineUserId) {
-            showStatus("ไม่สามารถระบุตัวตนบัญชี LINE ได้ — กรุณาเปิดผ่านแอป LINE (ลิงก์นี้ใช้ในแอป LINE เท่านั้น)", true);
+            showStatus("ไม่สามารถระบุตัวตนบัญชี LINE ได้ [" + r.via + "] — ต้องเปิดในแอป LINE", true);
             return;
           }
-          showStatus("เชื่อมต่อ LINE แล้ว — สวัสดีครับคุณพ่อคุณแม่");
+          showStatus("เชื่อมต่อ LINE แล้ว [" + r.via + "] — สวัสดีครับคุณพ่อคุณแม่");
           loadMyStudents();
         })
-        .catch(function () {
-          showStatus("กรุณาเปิดผ่าน LINE Official Account เพื่อใช้งาน (ลิงก์นี้ใช้งานได้ในแอป LINE เท่านั้น)", true);
+        .catch(function (err) {
+          showStatus("init ล้มเหลว [" + (err && err.message ? err.message.slice(0, 60) : 'unknown') + "] — เปิดในแอป LINE", true);
         });
     }
 

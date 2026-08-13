@@ -187,6 +187,7 @@
     if (name === "score") loadScoreHistory();
     if (name === "leave") loadLeaveRequests();
     if (name === "letters") loadLetters();
+    if (name === "line") loadLineSettings();
     if (name === "users") {
       loadUsers();
       loadSemesterConfig();
@@ -1638,13 +1639,21 @@
                 ? `
             <button class="btn btn-sm btn-outline-success me-1" onclick="handleLeaveAction('${r.RequestID}','approved')"><i class="bi bi-check-lg"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="handleLeaveAction('${r.RequestID}','rejected')"><i class="bi bi-x-lg"></i></button>`
-                : '<span class="text-secondary small">—</span>';
+                : r.Status === "approved"
+                  ? `<button class="btn btn-sm btn-outline-navy" onclick="openRecordActualOut('${r.RequestID}','${r.StudentName}')"><i class="bi bi-door-open me-1"></i> เวลาออกจริง</button>`
+                  : '<span class="text-secondary small">—</span>';
+
+            const timeCell =
+              `ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.` +
+              (r.ActualOutTime
+                ? `<div class="text-secondary" style="font-size:.72rem">ออกจริง ${formatTimeDisplay(r.ActualOutTime)} น.${r.ActualInTime ? " · กลับถึง " + formatTimeDisplay(r.ActualInTime) + " น." : ""}</div>`
+                : "");
 
             return `
           <tr>
             <td>${r.StudentName}<div class="text-secondary" style="font-size:.72rem">${r.StudentClass}</div></td>
             <td class="text-secondary small">${r.Reason}</td>
-            <td class="small">ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.</td>
+            <td class="small">${timeCell}</td>
             <td>${statusBadge}</td>
             <td class="text-end">${actionBtns}</td>
           </tr>`;
@@ -1660,6 +1669,57 @@
           '<tr><td colspan="5" class="text-center text-secondary py-4">โหลดข้อมูลไม่สำเร็จ</td></tr>';
       })
       .apiGetLeaveRequests(getToken(), { status: currentLeaveTab });
+  }
+
+  function openRecordActualOut(requestId, studentName) {
+    Swal.fire({
+      title: "บันทึกเวลาออกจากโรงเรียน",
+      html:
+        '<div style="text-align:left">นักเรียน: <b>' +
+        studentName +
+        '</b></div><label class="form-label small mt-2 mb-1">เวลาที่ออกจากโรงเรียนจริง <span class="text-danger">*</span></label>' +
+        '<input type="time" class="form-control" id="swal_actualOut">' +
+        '<label class="form-label small mt-2 mb-1">เวลากลับถึงโรงเรียน (ถ้ามี)</label>' +
+        '<input type="time" class="form-control" id="swal_actualIn">' +
+        '<div class="text-secondary small mt-2"><i class="bi bi-info-circle"></i> เมื่อบันทึกเวลาออกจริง ระบบจะแจ้งเตือนผู้ปกครองผ่าน LINE ทันที</div>',
+      showCancelButton: true,
+      confirmButtonText: "บันทึก",
+      cancelButtonText: "ยกเลิก",
+      preConfirm: () => {
+        const out = document.getElementById("swal_actualOut").value;
+        if (!out) {
+          Swal.showValidationMessage("กรุณาระบุเวลาที่ออกจากโรงเรียนจริง");
+          return false;
+        }
+        return {
+          out: out,
+          inn: document.getElementById("swal_actualIn").value,
+        };
+      },
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success) {
+            Swal.fire({
+              icon: "success",
+              title: "บันทึกเวลาออกจริงแล้ว",
+              text: res.outNotified
+                ? "ระบบได้แจ้งเตือนผู้ปกครองผ่าน LINE เรียบร้อยแล้ว"
+                : "บันทึกเวลาออกจริงเรียบร้อย",
+              timer: 2000,
+              showConfirmButton: false,
+            });
+            loadLeaveRequests();
+          } else {
+            Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: res.message });
+          }
+        })
+        .withFailureHandler((err) =>
+          Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+        )
+        .apiUpdateLeaveActualTimes(getToken(), requestId, r.value.out, r.value.inn);
+    });
   }
 
   function handleLeaveAction(requestId, status) {
@@ -2084,6 +2144,391 @@
             ? existingLetterNo.slice("ศธ 04293.43/".length)
             : existingLetterNo,
         );
+    });
+  }
+
+  /* ================= LINE NOTIFICATION MODULE ================= */
+  function loadLineSettings() {
+    const content = document.getElementById("lineContent");
+    content.innerHTML =
+      '<div class="card-panel text-center text-secondary py-5">กำลังโหลดข้อมูล...</div>';
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (!res.success) {
+          content.innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
+          return;
+        }
+        renderLineSettings(res);
+        loadAnnouncements();
+      })
+      .withFailureHandler((err) => {
+        content.innerHTML =
+          '<div class="card-panel"><div class="alert alert-danger">' +
+          err.message +
+          "</div></div>";
+      })
+      .apiGetLineSettings(getToken());
+  }
+
+  function renderLineSettings(res) {
+    const s = res.settings;
+    const st = res.stats;
+    const content = document.getElementById("lineContent");
+    // แยก URL เป็นส่วน ๆ — HTML Service ของ Apps Script ตัดข้อความหลัง "//" ในสตริงทิ้ง
+    const liffUrl = s.liffId ? "https:" + "//" + "liff.line.me/" + s.liffId : "";
+    const bindRows = (st.bindings || [])
+      .map(
+        (b) => `
+      <tr>
+        <td>${b.StudentName}<div class="text-secondary" style="font-size:.72rem">${b.StudentClass} · ${b.StudentID}</div></td>
+        <td class="small">${b.ParentDisplayName}</td>
+        <td class="small text-secondary">${b.LineUserID}</td>
+        <td class="small text-secondary">${b.BoundAt}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-danger" onclick="removeLineBinding('${b.BindingID}')"><i class="bi bi-trash3"></i></button>
+        </td>
+      </tr>`,
+      )
+      .join("");
+
+    content.innerHTML = `
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-lg-3">
+          <div class="stat-card-modern ${st.hasToken ? "stat-good" : "stat-bad"}">
+            <div class="stat-icn"><i class="bi bi-${st.hasToken ? "check2-circle" : "x-circle"}"></i></div>
+            <div><div class="stat-val">${st.hasToken ? "พร้อม" : "ยังไม่ตั้ง"}</div><div class="stat-lbl">Channel Access Token</div></div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="stat-card-modern ${st.hasLiff ? "stat-good" : "stat-bad"}">
+            <div class="stat-icn"><i class="bi bi-${st.hasLiff ? "phone" : "x-circle"}"></i></div>
+            <div><div class="stat-val">${st.hasLiff ? "พร้อม" : "ยังไม่ตั้ง"}</div><div class="stat-lbl">LIFF App</div></div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="stat-card-modern stat-navy">
+            <div class="stat-icn"><i class="bi bi-link-45deg"></i></div>
+            <div><div class="stat-val">${st.totalBindings}</div><div class="stat-lbl">ผู้ปกครองเชื่อม LINE</div></div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="stat-card-modern stat-good">
+            <div class="stat-icn"><i class="bi bi-people"></i></div>
+            <div><div class="stat-val">${st.linkedStudents}</div><div class="stat-lbl">นักเรียนเชื่อม LINE แล้ว</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-panel mb-3">
+        <div class="section-title"><span class="bar"></span> ตั้งค่า LINE OA + LIFF</div>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Channel Access Token (Messaging API)</label>
+            <input class="form-control" id="ls_token" value="${s.channelAccessToken}" autocomplete="off">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">LIFF App ID</label>
+            <input class="form-control" id="ls_liffId" value="${s.liffId}" placeholder="เช่น 2001234567-xxxx">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">ช่องทางติดต่อกลับโรงเรียน (แสดงในข้อความแจ้งเตือน)</label>
+            <input class="form-control" id="ls_contact" value="${s.contactChannel}" placeholder="เช่น 086-4563105">
+          </div>
+          <div class="col-md-6 d-flex align-items-end pb-1">
+            <label class="form-check-label small me-3"><input type="checkbox" class="form-check-input me-1" id="ls_notifyAdd" ${s.notifyScoreAdd ? "checked" : ""}>แจ้งเตือนเมื่อนักเรียนได้คะแนนเพิ่ม</label>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-navy btn-sm px-3" onclick="saveLineSettings()"><i class="bi bi-save2 me-1"></i> บันทึกการตั้งค่า</button>
+          <button class="btn btn-outline-primary btn-sm px-3" onclick="testLineNotification()"><i class="bi bi-send me-1"></i> ทดสอบส่ง</button>
+        </div>
+        <div class="alert alert-secondary small mt-3 mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          วิธีตั้งค่า: สร้าง LINE Official Account (Messaging API) → ใส่ Channel Access Token ข้างบน →
+          สร้าง LIFF App ใน LINE Developers โดยตั้ง URL ปลายทางเป็น <code>URL-Web-App/exec?page=liff</code>
+          (URL ที่ deploy ระบบนี้ + ต่อท้าย <code>?page=liff</code>)
+          ${liffUrl ? `→ ลิงก์ LIFF ของคุณ: <a href="${liffUrl}" target="_blank">${liffUrl}</a>` : ""}
+        </div>
+      </div>
+
+      <div class="card-panel mb-3">
+        <div class="section-title"><span class="bar"></span> ผู้ปกครองที่เชื่อม LINE กับระบบ</div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-3"><input class="form-control" id="lb_studentId" placeholder="รหัสนักเรียน เช่น 26165"></div>
+          <div class="col-md-3"><input class="form-control" id="lb_lineUserId" placeholder="LineUserID (U-xxxx)"></div>
+          <div class="col-md-3"><input class="form-control" id="lb_name" placeholder="ชื่อผู้ปกครอง (ไม่บังคับ)"></div>
+          <div class="col-md-3"><button class="btn btn-gold btn-sm px-3 w-100" onclick="addLineBinding()"><i class="bi bi-plus-lg me-1"></i> เพิ่มการเชื่อมต่อ</button></div>
+        </div>
+        <div style="max-height:360px;overflow:auto">
+          <table class="custom-table">
+            <thead><tr><th>นักเรียน</th><th>ผู้ปกครอง</th><th>LineUserID</th><th>เชื่อมเมื่อ</th><th class="text-end">การดำเนินการ</th></tr></thead>
+            <tbody>
+              ${bindRows || '<tr><td colspan="5" class="text-center text-secondary py-4">ยังไม่มีผู้ปกครองเชื่อม LINE</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="lineAnnouncements"></div>`;
+  }
+
+  function saveLineSettings() {
+    const payload = {
+      channelAccessToken: document.getElementById("ls_token").value,
+      liffId: document.getElementById("ls_liffId").value,
+      contactChannel: document.getElementById("ls_contact").value,
+      notifyScoreAdd: document.getElementById("ls_notifyAdd").checked,
+    };
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (res.success) {
+          Swal.fire({
+            icon: "success",
+            title: "บันทึกการตั้งค่า LINE แล้ว",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+          loadLineSettings();
+        } else {
+          Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: res.message });
+        }
+      })
+      .withFailureHandler((err) =>
+        Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+      )
+      .apiSaveLineSettings(getToken(), payload);
+  }
+
+  function testLineNotification() {
+    google.script.run
+      .withSuccessHandler((res) => {
+        Swal.fire({
+          icon: res.success ? "success" : "warning",
+          title: res.success ? "ส่งทดสอบสำเร็จ" : "ส่งทดสอบไม่สำเร็จ",
+          text: res.message,
+          timer: res.success ? 2000 : undefined,
+          showConfirmButton: !res.success,
+        });
+      })
+      .withFailureHandler((err) =>
+        Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+      )
+      .apiTestLineNotification(getToken());
+  }
+
+  function addLineBinding() {
+    const studentId = document.getElementById("lb_studentId").value.trim();
+    const lineUserId = document.getElementById("lb_lineUserId").value.trim();
+    const name = document.getElementById("lb_name").value.trim();
+    if (!studentId || !lineUserId) {
+      Swal.fire({
+        icon: "warning",
+        title: "กรุณากรอกรหัสนักเรียนและ LineUserID",
+      });
+      return;
+    }
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (res.success) {
+          Swal.fire({
+            icon: "success",
+            title: "เพิ่มการเชื่อมต่อแล้ว",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+          loadLineSettings();
+        } else {
+          Swal.fire({ icon: "error", title: "เพิ่มไม่สำเร็จ", text: res.message });
+        }
+      })
+      .withFailureHandler((err) =>
+        Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+      )
+      .apiAddLineBinding(getToken(), studentId, lineUserId, name);
+  }
+
+  function removeLineBinding(bindingId) {
+    Swal.fire({
+      icon: "question",
+      title: "ยกเลิกการเชื่อมต่อนี้?",
+      text: "ผู้ปกครองจะไม่ได้รับ LINE แจ้งเตือนของนักเรียนคนนี้",
+      showCancelButton: true,
+      confirmButtonText: "ยืนยัน",
+      cancelButtonText: "ยกเลิก",
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success) {
+            Swal.fire({
+              icon: "success",
+              title: "ยกเลิกการเชื่อมต่อแล้ว",
+              timer: 1500,
+              showConfirmButton: false,
+            });
+            loadLineSettings();
+          } else {
+            Swal.fire({ icon: "error", title: "ไม่สำเร็จ", text: res.message });
+          }
+        })
+        .withFailureHandler((err) =>
+          Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+        )
+        .apiRemoveLineBinding(getToken(), bindingId);
+    });
+  }
+
+  /* ================= LINE: ข่าว/ประกาศโรงเรียน ================= */
+  const ANNOUNCEMENT_TYPES = {
+    announcement: "📢 ประกาศ",
+    activity: "🏫 กิจกรรม",
+    exam: "📝 กำหนดการสอบ",
+    holiday: "🏖️ วันหยุด/ปิดภาคเรียน",
+  };
+
+  function loadAnnouncements() {
+    const el = document.getElementById("lineAnnouncements");
+    if (!el) return;
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (!res.success) {
+          el.innerHTML = "";
+          return;
+        }
+        renderAnnouncements(res.announcements || []);
+      })
+      .withFailureHandler(() => {
+        el.innerHTML = "";
+      })
+      .apiGetAnnouncements(getToken());
+  }
+
+  function renderAnnouncements(list) {
+    const el = document.getElementById("lineAnnouncements");
+    const rows = list
+      .map(
+        (a) => `
+      <tr>
+        <td>${ANNOUNCEMENT_TYPES[a.type] || "📢"} ${a.title}</td>
+        <td class="small text-secondary">${a.message}</td>
+        <td class="small text-secondary">${a.createdAt}<div style="font-size:.72rem">${a.createdBy}</div></td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="deleteAnnouncement('${a.announcementId}')"><i class="bi bi-trash3"></i></button></td>
+      </tr>`,
+      )
+      .join("");
+
+    el.innerHTML = `
+      <div class="card-panel">
+        <div class="section-title"><span class="bar"></span> ข่าว/ประกาศโรงเรียน</div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-3">
+            <select class="form-select" id="an_type">
+              <option value="announcement">📢 ประกาศ</option>
+              <option value="activity">🏫 กิจกรรม</option>
+              <option value="exam">📝 กำหนดการสอบ</option>
+              <option value="holiday">🏖️ วันหยุด/ปิดภาคเรียน</option>
+            </select>
+          </div>
+          <div class="col-md-3"><input class="form-control" id="an_title" placeholder="หัวข้อข่าว"></div>
+          <div class="col-md-4"><input class="form-control" id="an_message" placeholder="รายละเอียดข่าว"></div>
+          <div class="col-md-2 d-flex align-items-center gap-2">
+            <label class="form-check-label small d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input" id="an_sendLine"> ส่ง LINE</label>
+            <button class="btn btn-navy btn-sm px-3" onclick="addAnnouncement()"><i class="bi bi-plus-lg"></i></button>
+          </div>
+        </div>
+        <div style="max-height:300px;overflow:auto">
+          <table class="custom-table">
+            <thead><tr><th>ข่าว</th><th>รายละเอียด</th><th>เวลา</th><th class="text-end">การดำเนินการ</th></tr></thead>
+            <tbody>
+              ${rows || '<tr><td colspan="4" class="text-center text-secondary py-4">ยังไม่มีประกาศ</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function addAnnouncement() {
+    const title = document.getElementById("an_title").value.trim();
+    const message = document.getElementById("an_message").value.trim();
+    const type = document.getElementById("an_type").value;
+    const sendLine = document.getElementById("an_sendLine").checked;
+    if (!title || !message) {
+      Swal.fire({ icon: "warning", title: "กรุณากรอกหัวข้อและรายละเอียดข่าว" });
+      return;
+    }
+    if (sendLine) {
+      Swal.fire({
+        icon: "question",
+        title: "ส่ง LINE ให้ผู้ปกครองทุกคน?",
+        text: "จะส่งประกาศนี้ผ่าน LINE ไปยังผู้ปกครองทุกคนที่เชื่อมบัญชีแล้ว (ใช้โควต้าข้อความแจ้งเตือน)",
+        showCancelButton: true,
+        confirmButtonText: "ยืนยันส่ง",
+        cancelButtonText: "แค่บันทึก",
+        confirmButtonColor: "#c9861f",
+      }).then((r) => {
+        if (r.dismiss === Swal.DismissReason.cancel) submitAnnouncement(title, message, type, false);
+        else if (r.isConfirmed) submitAnnouncement(title, message, type, true);
+      });
+    } else {
+      submitAnnouncement(title, message, type, false);
+    }
+  }
+
+  function submitAnnouncement(title, message, type, sendLine) {
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (res.success) {
+          const parts = ["บันทึกประกาศแล้ว"];
+          if (res.broadcast) {
+            parts.push(
+              "ส่ง LINE เรียบร้อย " + res.broadcast.sent + "/" + res.broadcast.total + " ผู้ปกครอง",
+            );
+          }
+          Swal.fire({
+            icon: "success",
+            title: "บันทึกข่าว/ประกาศแล้ว",
+            html: parts.join("<br>"),
+            timer: 2200,
+            showConfirmButton: false,
+          });
+          loadLineSettings();
+        } else {
+          Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: res.message });
+        }
+      })
+      .withFailureHandler((err) =>
+        Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+      )
+      .apiAddAnnouncement(getToken(), title, message, type, sendLine);
+  }
+
+  function deleteAnnouncement(announcementId) {
+    Swal.fire({
+      icon: "question",
+      title: "ลบประกาศนี้?",
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      cancelButtonText: "ยกเลิก",
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (res.success) {
+            Swal.fire({
+              icon: "success",
+              title: "ลบแล้ว",
+              timer: 1200,
+              showConfirmButton: false,
+            });
+            loadLineSettings();
+          } else {
+            Swal.fire({ icon: "error", title: "ลบไม่สำเร็จ", text: res.message });
+          }
+        })
+        .withFailureHandler((err) =>
+          Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message }),
+        )
+        .apiDeleteAnnouncement(getToken(), announcementId);
     });
   }
 

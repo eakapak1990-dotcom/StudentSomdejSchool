@@ -622,9 +622,16 @@
 </div>
       <div class="view" id="view-line">
         <div class="topbar">
-          <h2>การแจ้งเตือน LINE</h2>
+          <div>
+            <h2>การแจ้งเตือน LINE</h2>
+            <div class="desc">เชื่อม LINE Official Account และ LIFF เพื่อแจ้งเตือนผู้ปกครองอัตโนมัติ (Flex Message)</div>
+          </div>
+          <button class="btn btn-navy btn-sm px-3" onclick="loadLineSettings()"><i class="bi bi-arrow-clockwise me-1"></i>
+            รีเฟรช</button>
         </div>
-        <div class="card-panel">อยู่ระหว่างพัฒนา (เฟสถัดไป)</div>
+        <div id="lineContent">
+          <div class="card-panel text-center text-secondary py-5">กำลังโหลดข้อมูล...</div>
+        </div>
       </div>
       <div class="view" id="view-users">
         <div class="topbar">

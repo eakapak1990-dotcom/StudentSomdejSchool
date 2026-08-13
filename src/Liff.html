@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบสารสนเทศโรงเรียน — ผู้ปกครอง</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <style>
+    :root {
+      --navy-950: #0e1b33;
+      --navy-900: #152a52;
+      --navy-800: #1c3768;
+      --navy-700: #284a8a;
+      --gold-500: #c9a227;
+      --gold-400: #d9b94a;
+      --bg: #f3f5f9;
+      --ink: #1a2233;
+      --ink-soft: #5b6478;
+      --line: #e4e8f0;
+      --good: #1f8a5b;
+      --bad: #c2483a;
+      --warn: #c9861f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Sarabun", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      margin: 0;
+      padding-bottom: 2.5rem;
+    }
+
+    .liff-header {
+      background: linear-gradient(155deg, var(--navy-950) 0%, var(--navy-900) 55%, var(--navy-800) 100%);
+      color: #fff;
+      padding: 1.1rem 1.2rem 1.3rem;
+      border-bottom: 2px solid var(--gold-500);
+    }
+
+    .liff-header .row-top {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(155deg, var(--gold-400), var(--gold-500));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--navy-950);
+      font-family: "Prompt";
+      font-weight: 800;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .app-name {
+      font-family: "Prompt";
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+
+    .app-sub {
+      font-size: 0.72rem;
+      color: #b9c3dc;
+    }
+
+    .liff-status {
+      margin: 0.9rem 1.1rem 0;
+      padding: 0.55rem 0.8rem;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .liff-status.error {
+      background: #fbe9e7;
+      border-color: #f0c6c1;
+      color: var(--bad);
+    }
+
+    .wrap {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 1rem 1.1rem;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin: 1rem 1.1rem 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.5rem 0;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink-soft);
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: var(--navy-900);
+      color: #fff;
+      border-color: var(--navy-900);
+    }
+
+    .tab-body {
+      display: none;
+    }
+
+    .tab-body.active {
+      display: block;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.1rem 1.2rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-family: "Prompt";
+      font-weight: 600;
+      font-size: 0.98rem;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .card-title .bar {
+      width: 4px;
+      height: 15px;
+      background: var(--gold-500);
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .section-label {
+      font-family: "Prompt";
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin: 0.3rem 0 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-label .bar {
+      width: 4px;
+      height: 15px;
+      background: var(--gold-500);
+      border-radius: 2px;
+    }
+
+    .btn-navy {
+      background: var(--navy-900);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+      font-weight: 600;
+    }
+
+    .btn-navy:hover {
+      background: var(--navy-800);
+      color: #fff;
+    }
+
+    .form-control,
+    .form-select {
+      background: #f6f7fb;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.55rem 0.8rem;
+      font-size: 0.9rem;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      border-color: var(--gold-500);
+      box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+    }
+
+    .student-card {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.7rem;
+    }
+
+    .student-card .avatar-mini {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--gold-500);
+      color: var(--navy-950);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Prompt";
+      font-weight: 700;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .student-card .info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .student-card .name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .student-card .sub {
+      color: var(--ink-soft);
+      font-size: 0.75rem;
+    }
+
+    .score-pill-mini {
+      font-family: "Prompt";
+      font-weight: 800;
+      font-size: 1.35rem;
+      color: var(--navy-900);
+      flex-shrink: 0;
+    }
+
+    /* ===== การ์ดคะแนน 3 ส่วน (เหมือนหน้าโปรไฟล์ฝั่งผู้ดูแล) ===== */
+    .score-cards {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .score-card {
+      flex: 1;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.8rem 0.7rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .score-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+    }
+
+    .score-card .sc-val {
+      font-family: "Prompt";
+      font-weight: 800;
+      font-size: 1.6rem;
+      line-height: 1.15;
+    }
+
+    .score-card .sc-lbl {
+      font-size: 0.7rem;
+      color: var(--ink-soft);
+      margin-top: 0.15rem;
+      line-height: 1.3;
+    }
+
+    .sc-initial::before {
+      background: linear-gradient(90deg, var(--navy-700), var(--navy-900));
+    }
+
+    .sc-initial .sc-val {
+      color: var(--navy-900);
+    }
+
+    .sc-deducted::before {
+      background: linear-gradient(90deg, #e57373, var(--bad));
+    }
+
+    .sc-deducted .sc-val {
+      color: var(--bad);
+    }
+
+    .sc-current::before {
+      background: linear-gradient(90deg, var(--gold-400), var(--gold-500));
+    }
+
+    .sc-current .sc-val {
+      color: var(--navy-900);
+    }
+
+    /* ===== แบนเนอร์สถานะความประพฤติ ===== */
+    .conduct-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      border-radius: 12px;
+      padding: 0.85rem 1.1rem;
+      color: #fff;
+      margin-bottom: 0.9rem;
+    }
+
+    .conduct-banner .cb-icon {
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+
+    .conduct-banner .cb-title {
+      font-family: "Prompt";
+      font-weight: 700;
+      font-size: 1.1rem;
+      line-height: 1.2;
+    }
+
+    .conduct-banner .cb-sub {
+      font-size: 0.78rem;
+      opacity: 0.94;
+    }
+
+    .cb-excellent {
+      background: linear-gradient(120deg, var(--navy-950), var(--navy-800) 60%, var(--navy-700));
+      border: 1px solid rgba(201, 162, 39, 0.4);
+    }
+
+    .cb-excellent .cb-icon,
+    .cb-excellent .cb-title {
+      color: var(--gold-400);
+    }
+
+    .cb-excellent .cb-sub {
+      color: #dce3f1;
+    }
+
+    .cb-good {
+      background: linear-gradient(120deg, #1d7a52, #2e9d6f);
+    }
+
+    .cb-fair {
+      background: linear-gradient(120deg, #b57a1d, #d9a03c);
+    }
+
+    .cb-watch {
+      background: linear-gradient(120deg, #b23c30, #d05f52);
+    }
+
+    .history-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid #f0f1f5;
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    .history-item .h-icn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      color: #fff;
+    }
+
+    .history-item .h-main {
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .history-item .h-sub {
+      font-size: 0.74rem;
+      color: var(--ink-soft);
+    }
+
+    .mini-btn {
+      font-size: 0.68rem;
+      padding: 0.22rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #f6f7fb;
+      color: var(--navy-800);
+      cursor: pointer;
+    }
+
+    .mini-btn-danger {
+      color: var(--bad);
+    }
+
+    .news-item {
+      padding: 0.7rem 0;
+      border-bottom: 1px solid #f0f1f5;
+    }
+
+    .news-item:last-child {
+      border-bottom: none;
+    }
+
+    .news-item .n-type {
+      font-size: 0.72rem;
+      color: var(--gold-500);
+      font-weight: 600;
+    }
+
+    .news-item .n-title {
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+
+    .news-item .n-msg {
+      font-size: 0.82rem;
+      color: var(--ink-soft);
+    }
+
+    .news-item .n-time {
+      font-size: 0.7rem;
+      color: #9aa3b8;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid #f0f1f5;
+      font-size: 0.85rem;
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .status-row .s-label {
+      color: var(--ink-soft);
+    }
+
+    /* ===== เกณฑ์แจ้งเตือน / หนังสือเชิญ (ในแท็บคะแนน) ===== */
+    .threshold-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.9rem;
+      background: linear-gradient(120deg, #7a1f18, #c2483a);
+      color: #fff;
+      font-size: 0.88rem;
+    }
+
+    .threshold-banner .tb-icon {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .threshold-banner .tb-main {
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .threshold-banner .tb-sub {
+      font-size: 0.74rem;
+      opacity: 0.92;
+    }
+
+    .letter-item {
+      padding: 0.55rem 0;
+      border-bottom: 1px solid #f0f1f5;
+      font-size: 0.85rem;
+    }
+
+    .letter-item:last-child {
+      border-bottom: none;
+    }
+
+    .letter-item .l-no {
+      font-weight: 600;
+      font-family: "Prompt";
+      font-size: 0.88rem;
+    }
+
+    .letter-item .l-meta {
+      font-size: 0.74rem;
+      color: var(--ink-soft);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .badge-status {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 20px;
+    }
+
+    .badge-done {
+      background: #e2f3ea;
+      color: var(--good);
+    }
+
+    .badge-wait {
+      background: #fdf3dc;
+      color: var(--warn);
+    }
+
+    .badge-other {
+      background: #eef0f6;
+      color: var(--ink-soft);
+    }
+
+    /* ===== การแจ้งเตือนล่าสุด (แท็บข่าวสาร) ===== */
+    .notif-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid #f0f1f5;
+    }
+
+    .notif-item:last-child {
+      border-bottom: none;
+    }
+
+    .notif-item .n-icn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      color: #fff;
+      background: var(--navy-700);
+    }
+
+    .notif-item .n-main {
+      font-size: 0.86rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .notif-item .n-desc {
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+    }
+
+    .notif-item .n-time {
+      font-size: 0.7rem;
+      color: #9aa3b8;
+    }
+
+    .pin-card {
+      background: linear-gradient(135deg, #fdf9ec, #fff);
+      border: 1px solid rgba(201, 162, 39, 0.35);
+    }
+
+    .pin-card .card-title {
+      color: var(--navy-900);
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="liff-header">
+    <div class="row-top">
+      <div class="brand-mark">SA</div>
+      <div>
+        <div class="app-name">ระบบสารสนเทศโรงเรียน</div>
+        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE...</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="home" onclick="switchLiffTab('home')">หน้าแรก</button>
+    <button class="tab" data-tab="score" onclick="switchLiffTab('score')">คะแนน</button>
+    <button class="tab" data-tab="leave" onclick="switchLiffTab('leave')">ลาออก</button>
+    <button class="tab" data-tab="news" onclick="switchLiffTab('news')">ข่าวสาร</button>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ============ HOME ============ -->
+    <div class="tab-body active" id="tab-home">
+      <div class="section-label"><span class="bar"></span> นักเรียนของฉัน</div>
+      <div id="homeStudents"></div>
+
+      <div class="card">
+        <div class="card-title"><i class="bi bi-link-45deg" style="color:var(--navy-700)"></i> เชื่อมบัญชี LINE กับนักเรียน</div>
+        <div class="text-secondary small mb-2">
+          กรอกรหัสนักเรียนและเบอร์โทรผู้ปกครองที่แจ้งไว้กับโรงเรียน เพื่อยืนยันความสัมพันธ์ก่อนเชื่อมต่อ
+          (เมื่อเชื่อมแล้วระบบจะแจ้งเตือนคะแนน คำร้อง และเอกสารของนักเรียนผ่าน LINE ให้อัตโนมัติ)
+        </div>
+        <input class="form-control mb-2" id="bind_studentId" placeholder="รหัสนักเรียน เช่น 26165">
+        <input class="form-control mb-2" id="bind_phone" placeholder="เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)">
+        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 4–6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
+        <button class="btn btn-navy w-100" onclick="doBind()"><i class="bi bi-link-45deg me-1"></i> เชื่อมต่อ</button>
+      </div>
+
+      <div class="card pin-card" id="pinCard" style="display:none">
+        <div class="card-title"><i class="bi bi-shield-lock" style="color:var(--gold-500)"></i> ความปลอดภัยของบัญชี</div>
+        <div class="text-secondary small mb-2">
+          เปลี่ยนรหัส PIN หรือยกเลิกการเชื่อมต่อของนักเรียนคนใดคนหนึ่ง (ต้องยืนยันรหัส PIN ปัจจุบัน)
+        </div>
+        <label class="form-label small fw-semibold">เลือกนักเรียน</label>
+        <select class="form-select mb-2" id="pin_studentSelect">
+          <option value="">-- เลือกนักเรียน --</option>
+        </select>
+        <label class="form-label small fw-semibold">รหัส PIN ปัจจุบัน</label>
+        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 4–6 หลัก">
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <button class="btn btn-navy w-100" onclick="doChangePin()"><i class="bi bi-key me-1"></i> เปลี่ยน PIN</button>
+          </div>
+          <div class="col-6">
+            <button class="btn btn-outline-danger w-100" style="border-radius:10px" onclick="doUnbind()"><i class="bi bi-unlink me-1"></i> ยกเลิกการเชื่อม</button>
+          </div>
+        </div>
+        <div class="text-secondary small"><i class="bi bi-info-circle me-1"></i>เมื่อเปลี่ยน PIN จะต้องกรอกรหัสใหม่เพื่อยืนยันรหัส PIN ใหม่ในช่องถัดไป</div>
+        <input class="form-control mt-2" id="pin_new" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN ใหม่ (เฉพาะตอนเปลี่ยน PIN)">
+      </div>
+    </div>
+
+    <!-- ============ SCORE ============ -->
+    <div class="tab-body" id="tab-score">
+      <div class="card">
+        <div class="card-title"><span class="bar"></span> ดูคะแนนความประพฤติ</div>
+        <label class="form-label small fw-semibold">เลือกนักเรียน</label>
+        <select class="form-select" id="score_studentSelect" onchange="loadLiffScore()">
+          <option value="">-- เลือกนักเรียน --</option>
+        </select>
+        <div class="text-secondary small mt-2"><i class="bi bi-shield-lock me-1"></i>ดูได้เฉพาะนักเรียนที่ผู้ปกครองผูกบัญชีกับระบบแล้วเท่านั้น</div>
+      </div>
+      <div id="scoreResult"></div>
+    </div>
+
+    <!-- ============ LEAVE ============ -->
+    <div class="tab-body" id="tab-leave">
+      <div class="card">
+        <div class="card-title"><span class="bar"></span> แจ้งลาออกจากพื้นที่ (ผู้ปกครอง)</div>
+        <label class="form-label small fw-semibold">เลือกนักเรียน</label>
+        <select class="form-select mb-3" id="leave_studentSelect">
+          <option value="">-- เลือกนักเรียน --</option>
+        </select>
+        <label class="form-label small fw-semibold">เหตุผล <span class="text-danger">*</span></label>
+        <textarea class="form-control mb-2" id="leave_reason" rows="2" placeholder="เช่น ไปพบแพทย์ ผู้ปกครองมารับกลับบ้าน"></textarea>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลาที่ขอออก <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="leave_outTime">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">เวลาที่ขอกลับ <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="leave_inTime">
+          </div>
+        </div>
+        <button class="btn btn-navy w-100" onclick="submitLiffLeave()"><i class="bi bi-send me-1"></i> ส่งคำร้องให้โรงเรียน</button>
+        <div class="text-secondary small mt-2"><i class="bi bi-info-circle me-1"></i>คำร้องจะเข้าระบบสถานะ "รอดำเนินการ" — เจ้าหน้าที่โรงเรียนเป็นผู้อนุมัติ และจะแจ้งผลผ่าน LINE ให้ทราบ</div>
+      </div>
+    </div>
+
+    <!-- ============ NEWS & NOTIFICATIONS ============ -->
+    <div class="tab-body" id="tab-news">
+      <div class="card">
+        <div class="card-title"><span class="bar"></span> ข่าว/ประกาศโรงเรียน</div>
+        <div id="newsList"><div class="text-secondary small text-center py-3">กำลังโหลด...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="bar"></span> การแจ้งเตือนล่าสุดของนักเรียน</div>
+        <select class="form-select mb-2" id="notif_studentSelect" onchange="loadLiffNotifications()">
+          <option value="">-- เลือกนักเรียน --</option>
+        </select>
+        <div id="notifList"><div class="text-secondary small text-center py-3">เลือกนักเรียนเพื่อดูประวัติการแจ้งเตือน</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const LIFF_ID = "<?!= getLiffId_() ?>";
+
+    let lineUserId = null;
+    let myStudents = [];
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function showStatus(text, isError) {
+      const el = $("liffStatus");
+      el.className = "liff-status" + (isError ? " error" : "");
+      el.innerHTML = isError
+        ? '<i class="bi bi-exclamation-triangle me-1"></i> ' + text
+        : '<i class="bi bi-check2-circle me-1" style="color:var(--good)"></i> ' + text;
+    }
+
+    function switchLiffTab(name) {
+      document.querySelectorAll(".tab").forEach(function (t) {
+        t.classList.toggle("active", t.dataset.tab === name);
+      });
+      document.querySelectorAll(".tab-body").forEach(function (b) {
+        b.classList.toggle("active", b.id === "tab-" + name);
+      });
+      if (name === "score" && !myStudents.length) loadMyStudents();
+      if (name === "news") {
+        loadLiffNews();
+        if (!myStudents.length) loadMyStudents();
+      }
+    }
+
+    /* ============ LINE INIT ============ */
+    if (!LIFF_ID) {
+      showStatus("ระบบยังไม่ได้ตั้งค่า LIFF App ID — กรุณาแจ้งเจ้าหน้าที่โรงเรียน", true);
+    } else {
+      liff
+        .init({ liffId: LIFF_ID })
+        .then(function () {
+          const idToken = liff.getDecodedIDToken();
+          lineUserId = idToken && idToken.sub;
+          if (!lineUserId) {
+            showStatus("ไม่สามารถระบุตัวตนบัญชี LINE ได้", true);
+            return;
+          }
+          showStatus("เชื่อมต่อ LINE แล้ว — สวัสดีครับคุณพ่อคุณแม่");
+          loadMyStudents();
+        })
+        .catch(function () {
+          showStatus("กรุณาเปิดผ่าน LINE Official Account เพื่อใช้งาน (ลิงก์นี้ใช้งานได้ในแอป LINE เท่านั้น)", true);
+        });
+    }
+
+    /* ============ HOME: นักเรียนของฉัน ============ */
+    function loadMyStudents(forceReload) {
+      if (!lineUserId) return;
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) {
+            $("homeStudents").innerHTML =
+              '<div class="alert alert-danger small">' + res.message + "</div>";
+            return;
+          }
+          myStudents = res.students || [];
+          renderMyStudents();
+          fillStudentSelects();
+        })
+        .apiLiffGetMyStudents(lineUserId);
+    }
+
+    function renderMyStudents() {
+      const el = $("homeStudents");
+      if (!myStudents.length) {
+        el.innerHTML =
+          '<div class="card text-center text-secondary small py-4">ยังไม่มีนักเรียนที่เชื่อมต่อ — กรอกข้อมูลด้านล่างเพื่อเชื่อมบัญชี</div>';
+        return;
+      }
+      el.innerHTML = myStudents
+        .map(
+          function (s) {
+            const initials = (s.name || "-").replace(/^(เด็กชาย|เด็กหญิง|นาย|นางสาว|นาง|นาย)\s*/i, "").split(" ").map(function (w) { return (w || "")[0] || ""; }).join("").slice(0, 2) || "?";
+            return (
+              '<div class="student-card">' +
+              '<div class="avatar-mini">' + initials + "</div>" +
+              '<div class="info">' +
+              '<div class="name">' + s.name + "</div>" +
+              '<div class="sub">' + s.className + " · รหัส " + s.studentId + "</div>" +
+              "</div>" +
+              '<div class="score-pill-mini">' + s.currentScore + "</div>" +
+              "</div>"
+            );
+          },
+        )
+        .join("");
+    }
+
+    function fillStudentSelects() {
+      const opts = myStudents
+        .map(function (s) {
+          return '<option value="' + s.studentId + '">' + s.name + " (" + s.className + ")</option>";
+        })
+        .join("");
+      $("score_studentSelect").innerHTML = '<option value="">-- เลือกนักเรียน --</option>' + opts;
+      $("leave_studentSelect").innerHTML = '<option value="">-- เลือกนักเรียน --</option>' + opts;
+      $("pin_studentSelect").innerHTML = '<option value="">-- เลือกนักเรียน --</option>' + opts;
+      $("notif_studentSelect").innerHTML = '<option value="">-- เลือกนักเรียน --</option>' + opts;
+      $("pinCard").style.display = myStudents.length ? "block" : "none";
+    }
+
+    /* ============ BIND ============ */
+    function doBind() {
+      const studentId = $("bind_studentId").value.trim();
+      const phone = $("bind_phone").value.trim();
+      if (!studentId || !phone) {
+        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
+        return;
+      }
+      Swal.fire({
+        icon: "question",
+        title: "ยืนยันการเชื่อมต่อ",
+        html: "ผูกบัญชี LINE นี้กับรหัสนักเรียน <b>" + studentId + "</b>?",
+        showCancelButton: true,
+        confirmButtonText: "ยืนยัน",
+        cancelButtonText: "ยกเลิก",
+      }).then(function (r) {
+        if (!r.isConfirmed) return;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res.success) {
+              Swal.fire({ icon: "error", title: "เชื่อมต่อไม่สำเร็จ", text: res.message });
+              return;
+            }
+            Swal.fire({
+              icon: "success",
+              title: "เชื่อมต่อสำเร็จ",
+              html: "จะได้รับแจ้งเตือนของ " + (res.parentName || "นักเรียน") + " ผ่าน LINE แล้ว",
+              timer: 2200,
+              showConfirmButton: false,
+            });
+            $("bind_studentId").value = "";
+            $("bind_phone").value = "";
+            loadMyStudents(true);
+          })
+          .withFailureHandler(function (err) {
+            Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
+          })
+          .apiLiffBind(lineUserId, studentId, phone);
+      });
+    }
+
+    /* ============ SCORE ============ */
+    function loadLiffScore() {
+      const studentId = $("score_studentSelect").value;
+      const result = $("scoreResult");
+      if (!studentId) {
+        result.innerHTML = "";
+        return;
+      }
+      result.innerHTML = '<div class="text-center text-secondary py-4">กำลังโหลด...</div>';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) {
+            result.innerHTML = '<div class="alert alert-danger small">' + res.message + "</div>";
+            return;
+          }
+          renderLiffScore(res);
+        })
+        .withFailureHandler(function (err) {
+          result.innerHTML = '<div class="alert alert-danger small">' + err.message + "</div>";
+        })
+        .apiLiffGetStudentScore(lineUserId, studentId);
+    }
+
+    function renderLiffScore(res) {
+      const ss = res.scoreSummary || {};
+      const initial = Number(ss.initialScore) || 100;
+      const deducted = Math.max(0, Number(ss.totalDeducted) || 0);
+      const current = Number(ss.currentScore) || 0;
+      const hasDeduction = Number(ss.deductedCount || 0) > 0;
+      const st = res.student || {};
+
+      let conduct = { cls: "cb-excellent", title: "ยอดเยี่ยม", sub: "ความประพฤติดีมาก" };
+      if (hasDeduction && current < 80) {
+        if (current >= 60) conduct = { cls: "cb-good", title: "ดี", sub: "ความประพฤติอยู่ในเกณฑ์ดี" };
+        else if (current >= 40) conduct = { cls: "cb-fair", title: "พอใช้", sub: "ควรปรับปรุงความประพฤติ" };
+        else conduct = { cls: "cb-watch", title: "ต้องปรับปรุง", sub: "อยู่ในเกณฑ์เฝ้าระวังเป็นพิเศษ" };
+      }
+
+      const history =
+        (res.history || []).length
+          ? res.history
+              .map(function (h) {
+                const isDeduct = h.type === "deduct";
+                return (
+                  '<div class="history-item">' +
+                  '<div class="h-icn" style="background:' + (isDeduct ? "#c2483a" : "#1f8a5b") + '">' +
+                  '<i class="bi ' + (isDeduct ? "bi-dash" : "bi-plus") + '"></i></div>' +
+                  '<div style="flex:1">' +
+                  '<div class="h-main">' + (isDeduct ? "-" : "+") + h.amount + " คะแนน · " + (h.reason || "-") + "</div>" +
+                  '<div class="h-sub">' + h.timestamp + " · บันทึกโดย " + h.recordedByName + "</div>" +
+                  "</div></div>"
+                );
+              })
+              .join("")
+          : '<div class="text-secondary small text-center py-3">ยังไม่มีประวัติคะแนน</div>';
+
+      // เกณฑ์แจ้งเตือนเชิญผู้ปกครอง
+      const thresholdTexts = {
+        80: "คะแนนลดถึงเกณฑ์ 80 — อยู่ในเกณฑ์เฝ้าระวัง",
+        60: "คะแนนลดถึงเกณฑ์ 60 — ควรติดตามความประพฤติ",
+        40: "คะแนนลดถึงเกณฑ์ 40 — อยู่ในเกณฑ์เฝ้าระวังเป็นพิเศษ",
+        20: "คะแนนลดถึงเกณฑ์ 20 — ใกล้ถึงเกณฑ์เชิญผู้ปกครองเข้มงวด",
+        0: "คะแนนเหลือ 0 — อยู่ในเกณฑ์ต้องดำเนินการเร่งด่วน",
+      };
+      const thresholdHtml =
+        res.threshold !== null && res.threshold !== undefined
+          ? '<div class="threshold-banner"><i class="bi bi-exclamation-octagon tb-icon"></i>' +
+            '<div><div class="tb-main">' + (thresholdTexts[res.threshold] || "คะแนนอยู่ในเกณฑ์แจ้งเตือน") + "</div>" +
+            '<div class="tb-sub">ระบบจะแจ้งเตือนผ่าน LINE เมื่อคะแนนลดถึงเกณฑ์ดังกล่าว</div></div></div>'
+          : "";
+
+      // สถานะหนังสือเชิญผู้ปกครอง
+      const letters =
+        (res.letters || []).length
+          ? res.letters
+              .map(function (l) {
+                const badge =
+                  l.status === "confirmed"
+                    ? '<span class="badge-status badge-done">ออกเอกสารแล้ว</span>'
+                    : l.status === "draft"
+                      ? '<span class="badge-status badge-wait">รอออกเอกสาร</span>'
+                      : '<span class="badge-status badge-other">' + (l.statusText || l.status) + "</span>";
+                return (
+                  '<div class="letter-item">' +
+                  '<div class="l-no">📄 เลขที่ ' + l.letterNo + "</div>" +
+                  '<div class="l-meta">' + badge + " · " + l.createdAt + " · โดย " + l.createdBy + "</div>" +
+                  "</div>"
+                );
+              })
+              .join("")
+          : '<div class="text-secondary small text-center py-2">ยังไม่มีหนังสือเชิญผู้ปกครอง</div>';
+
+      $("scoreResult").innerHTML =
+        '<div class="card">' +
+        '<div class="card-title"><span class="bar"></span> ' + st.name + '</div>' +
+        '<div class="text-secondary small mb-2">' + st.className + " · รหัส " + st.studentId + "</div>" +
+        '<div class="score-cards">' +
+        '<div class="score-card sc-initial"><div class="sc-val">' + initial + '</div><div class="sc-lbl">คะแนนเริ่มต้น</div></div>' +
+        '<div class="score-card sc-deducted"><div class="sc-val">' + deducted + '</div><div class="sc-lbl">คะแนนที่หัก</div></div>' +
+        '<div class="score-card sc-current"><div class="sc-val">' + current + '</div><div class="sc-lbl">คะแนนคงเหลือ</div></div>' +
+        "</div>" +
+        '<div class="conduct-banner ' + conduct.cls + '">' +
+        '<i class="bi bi-stars cb-icon"></i>' +
+        "<div><div class='cb-title'>" + conduct.title + "</div><div class='cb-sub'>" + conduct.sub + "</div></div>" +
+        "</div>" +
+        thresholdHtml +
+        '<div class="card-title" style="margin-top:.4rem"><span class="bar"></span> หนังสือเชิญผู้ปกครอง</div>' +
+        letters +
+        '<div class="card-title" style="margin-top:.9rem"><span class="bar"></span> ประวัติคะแนนล่าสุด</div>' +
+        history +
+        "</div>";
+    }
+
+    /* ============ LEAVE (ผู้ปกครอง) ============ */
+    function submitLiffLeave() {
+      const studentId = $("leave_studentSelect").value;
+      const reason = $("leave_reason").value.trim();
+      const outTime = $("leave_outTime").value;
+      const inTime = $("leave_inTime").value;
+      if (!studentId) {
+        Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
+        return;
+      }
+      if (!reason || !outTime || !inTime) {
+        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุเหตุผล เวลาที่ขอออก และเวลาที่ขอกลับ" });
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) {
+            Swal.fire({ icon: "error", title: "ส่งคำร้องไม่สำเร็จ", text: res.message });
+            return;
+          }
+          Swal.fire({
+            icon: "success",
+            title: "ส่งคำร้องเรียบร้อย",
+            html: "คำร้องถูกส่งให้โรงเรียนแล้ว — รอการอนุมัติจากเจ้าหน้าที่<br>ผลการอนุมัติจะแจ้งผ่าน LINE ให้ทราบ",
+            timer: 2500,
+            showConfirmButton: false,
+          });
+          $("leave_reason").value = "";
+          $("leave_outTime").value = "";
+          $("leave_inTime").value = "";
+        })
+        .withFailureHandler(function (err) {
+          Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
+        })
+        .apiLiffSubmitLeave(lineUserId, studentId, reason, outTime, inTime);
+    }
+
+    /* ============ NEWS & NOTIFICATIONS ============ */
+    const NEWS_TYPE_LABEL = {
+      announcement: "📢 ประกาศโรงเรียน",
+      exam: "📝 กำหนดการสอบ",
+      holiday: "🏖️ วันหยุด/ปิดภาคเรียน",
+      activity: "🏫 กิจกรรมโรงเรียน",
+    };
+
+    function loadLiffNews() {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          const list = $("newsList");
+          if (!res.success) {
+            list.innerHTML = '<div class="alert alert-danger small">' + res.message + "</div>";
+            return;
+          }
+          const items = res.announcements || [];
+          if (!items.length) {
+            list.innerHTML = '<div class="text-secondary small text-center py-3">ยังไม่มีประกาศจากโรงเรียน</div>';
+            return;
+          }
+          list.innerHTML = items
+            .map(function (a) {
+              return (
+                '<div class="news-item">' +
+                '<div class="n-type">' + (NEWS_TYPE_LABEL[a.type] || "📢 ประกาศ") + "</div>" +
+                '<div class="n-title">' + a.title + "</div>" +
+                '<div class="n-msg">' + a.message + "</div>" +
+                '<div class="n-time">' + a.createdAt + "</div>" +
+                "</div>"
+              );
+            })
+            .join("");
+        })
+        .withFailureHandler(function (err) {
+          $("newsList").innerHTML = '<div class="alert alert-danger small">' + err.message + "</div>";
+        })
+        .apiLiffGetAnnouncements(lineUserId);
+    }
+
+    function loadLiffNotifications() {
+      const studentId = $("notif_studentSelect").value;
+      const list = $("notifList");
+      if (!studentId) {
+        list.innerHTML = '<div class="text-secondary small text-center py-3">เลือกนักเรียนเพื่อดูประวัติการแจ้งเตือน</div>';
+        return;
+      }
+      list.innerHTML = '<div class="text-center text-secondary py-3">กำลังโหลด...</div>';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) {
+            list.innerHTML = '<div class="alert alert-danger small">' + res.message + "</div>";
+            return;
+          }
+          const events = res.events || [];
+          if (!events.length) {
+            list.innerHTML = '<div class="text-secondary small text-center py-3">ยังไม่มีประวัติการแจ้งเตือนของนักเรียนคนนี้</div>';
+            return;
+          }
+          const ICONS = { score: "bi-credit-card-2-front", leave: "bi-door-open", letter: "bi-envelope-paper", student: "bi-person-vcard", announcement: "bi-megaphone" };
+          list.innerHTML = events
+            .map(function (ev) {
+              return (
+                '<div class="notif-item">' +
+                '<div class="n-icn"><i class="bi ' + (ICONS[ev.type] || "bi-bell") + '"></i></div>' +
+                '<div style="flex:1">' +
+                '<div class="n-main">' + ev.title + "</div>" +
+                (ev.description ? '<div class="n-desc">' + ev.description + "</div>" : "") +
+                '<div class="n-time"><i class="bi bi-clock me-1"></i>' + ev.timestamp + "</div>" +
+                "</div></div>"
+              );
+            })
+            .join("");
+        })
+        .withFailureHandler(function (err) {
+          list.innerHTML = '<div class="alert alert-danger small">' + err.message + "</div>";
+        })
+        .apiLiffGetNotifications(lineUserId, studentId);
+    }
+
+    /* ============ PIN: เปลี่ยน / ยกเลิกการเชื่อม ============ */
+    function doChangePin() {
+      const studentId = $("pin_studentSelect").value;
+      const oldPin = $("pin_current").value.trim();
+      const newPin = $("pin_new").value.trim();
+      if (!studentId) return Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
+      if (!oldPin || !newPin) return Swal.fire({ icon: "warning", title: "กรุณากรอก PIN เดิมและ PIN ใหม่" });
+      if (!/^\d{4,6}$/.test(newPin)) return Swal.fire({ icon: "warning", title: "PIN ใหม่ต้องเป็นตัวเลข 4–6 หลัก" });
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) return Swal.fire({ icon: "error", title: "เปลี่ยน PIN ไม่สำเร็จ", text: res.message });
+          Swal.fire({ icon: "success", title: "เปลี่ยน PIN เรียบร้อย", timer: 1800, showConfirmButton: false });
+          $("pin_current").value = "";
+          $("pin_new").value = "";
+        })
+        .withFailureHandler(function (err) {
+          Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
+        })
+        .apiLiffChangePin(lineUserId, studentId, oldPin, newPin);
+    }
+
+    function doUnbind() {
+      const studentId = $("pin_studentSelect").value;
+      const pin = $("pin_current").value.trim();
+      if (!studentId) return Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
+      if (!pin) return Swal.fire({ icon: "warning", title: "กรุณากรอกรหัส PIN เพื่อยืนยันการยกเลิก" });
+      Swal.fire({
+        icon: "warning",
+        title: "ยกเลิกการเชื่อมต่อ?",
+        html: "จะไม่ได้รับแจ้งเตือนของนักเรียนคนนี้ผ่าน LINE อีกต่อไป",
+        showCancelButton: true,
+        confirmButtonText: "ยืนยันยกเลิก",
+        cancelButtonText: "ยกเลิก",
+      }).then(function (r) {
+        if (!r.isConfirmed) return;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res.success) return Swal.fire({ icon: "error", title: "ยกเลิกไม่สำเร็จ", text: res.message });
+            Swal.fire({ icon: "success", title: "ยกเลิกการเชื่อมต่อแล้ว", timer: 1800, showConfirmButton: false });
+            $("pin_current").value = "";
+            $("pin_new").value = "";
+            loadMyStudents(true);
+          })
+          .withFailureHandler(function (err) {
+            Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
+          })
+          .apiLiffUnbind(lineUserId, studentId, pin);
+      });
+    }
+  </script>
+</body>
+
+</html>

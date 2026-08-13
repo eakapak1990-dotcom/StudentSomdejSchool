@@ -7,6 +7,14 @@
  * รับ HTTP GET request และส่ง HTML กลับ
  */
 function doGet(e) {
+  // หน้า LIFF สำหรับผู้ปกครอง (เปิดผ่าน LINE OA) — ใช้ URL .../exec?page=liff
+  if (e && e.parameter && e.parameter.page === 'liff') {
+    return HtmlService.createTemplateFromFile('Liff')
+      .evaluate()
+      .setTitle('ผู้ปกครอง — ' + CONFIG.APP_NAME)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle(CONFIG.APP_NAME)

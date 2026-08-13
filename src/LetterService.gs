@@ -378,6 +378,14 @@ function api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, l
       'ยืนยันโดย ' + session.fullName, session.fullName);
     logAudit_(session, 'CONFIRM', CONFIG.SHEET_NAMES.INVITATION_LETTERS, letterId, 'draft', 'confirmed');
 
+    // แจ้งเตือนผู้ปกครองผ่าน LINE ว่ามีหนังสือเชิญ — ไม่กระทบงานหลักถ้า LINE error
+    try {
+      notifyLetterEvent_(letterObj.StudentID, letterObj.LetterNo, detail || '-',
+        toThaiFullDateText_(apptDate) + ' ' + apptTime + ' น.', session.fullName, new Date());
+    } catch (lineErr) {
+      Logger.log('ส่ง LINE แจ้งเตือนหนังสือเชิญไม่สำเร็จ: ' + lineErr.message);
+    }
+
     return { success: true, pdfUrl: pdfFile.getUrl(), pdfFileId: pdfFile.getId() };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };

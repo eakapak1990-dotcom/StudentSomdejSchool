@@ -23,6 +23,7 @@ const CONFIG = {
     INVITATION_LETTERS: 'InvitationLetters',
     TIMELINE:           'Timeline',
     LINE_BINDINGS:      'LineBindings',
+    ANNOUNCEMENTS:      'Announcements',
     AUDIT_LOG:          'AuditLog',
     CONFIG:             'Config',
   },

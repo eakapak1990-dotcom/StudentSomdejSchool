@@ -140,7 +140,75 @@ function api_updateLeaveStatus_(token, requestId, status, approvalReason) {
 
         logAudit_(session, 'UPDATE_STATUS', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, 'pending', status);
 
+        // แจ้งเตือนผู้ปกครองผ่าน LINE เมื่ออนุมัติ — ไม่กระทบงานหลักถ้า LINE error
+        if (status === 'approved') {
+          try {
+            notifyLeaveApprovalEvent_(studentId, rowObj.Reason, rowObj.RequestedOutTime, rowObj.RequestedInTime, session.fullName, new Date());
+          } catch (lineErr) {
+            Logger.log('ส่ง LINE แจ้งเตือนอนุมัติคำร้องไม่สำเร็จ: ' + lineErr.message);
+          }
+        }
+
         return { success: true };
+      }
+    }
+    return { success: false, message: 'ไม่พบคำร้องนี้' };
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+  }
+}
+
+/**
+ * บันทึกเวลาออกจากโรงเรียนจริง (เฉพาะคำร้องที่อนุมัติแล้ว)
+ * เมื่อบันทึกเวลาออกจริง → แจ้งเตือนผู้ปกครอง "นักเรียนออกจากโรงเรียนแล้ว"
+ */
+function api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTime) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].approveLeave) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์บันทึกเวลาออกจริง' };
+    }
+    const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('RequestID');
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][colId] === requestId) {
+        const rowObj = rowToObject_(headers, data[i]);
+        if (rowObj.Status !== 'approved') {
+          return { success: false, message: 'บันทึกเวลาออกจริงได้เฉพาะคำร้องที่อนุมัติแล้ว' };
+        }
+        const outTime = String(actualOutTime || '').trim();
+        const inTime = String(actualInTime || '').trim();
+        if (outTime && !/^\d{2}:\d{2}$/.test(outTime)) {
+          return { success: false, message: 'รูปแบบเวลาออกจริงไม่ถูกต้อง' };
+        }
+        if (inTime && !/^\d{2}:\d{2}$/.test(inTime)) {
+          return { success: false, message: 'รูปแบบเวลากลับถึงไม่ถูกต้อง' };
+        }
+        if (!outTime && !inTime) {
+          return { success: false, message: 'กรุณาระบุเวลาอย่างน้อยหนึ่งเวลา' };
+        }
+        let outNotified = false;
+        if (outTime) {
+          sheet.getRange(i + 1, headers.indexOf('ActualOutTime') + 1).setValue(outTime);
+          sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+          // แจ้งเตือนผู้ปกครองว่านักเรียนออกจากโรงเรียนแล้ว
+          try {
+            const lineRes = notifyLeaveActualOutEvent_(rowObj.StudentID, rowObj.Reason, outTime, session.fullName, new Date());
+            outNotified = !!lineRes.sent;
+          } catch (lineErr) {
+            Logger.log('ส่ง LINE แจ้งเตือนเวลาออกจริงไม่สำเร็จ: ' + lineErr.message);
+          }
+        }
+        if (inTime) {
+          sheet.getRange(i + 1, headers.indexOf('ActualInTime') + 1).setValue(inTime);
+        }
+        logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, '',
+          'บันทึกเวลาออกจริง: ' + (outTime || '-') + ' · กลับถึง: ' + (inTime || '-'));
+        return { success: true, outNotified: outNotified };
       }
     }
     return { success: false, message: 'ไม่พบคำร้องนี้' };
@@ -160,6 +228,9 @@ function apiGetLeaveRequests(token, filters) {
 }
 function apiUpdateLeaveStatus(token, requestId, status, approvalReason) {
   return api_updateLeaveStatus_(token, requestId, status, approvalReason);
+}
+function apiUpdateLeaveActualTimes(token, requestId, actualOutTime, actualInTime) {
+  return api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTime);
 }
 /**
  * MIGRATION: รันครั้งเดียวเพื่อแก้ไขข้อมูลเวลาที่เพี้ยนจากบั๊กเดิม

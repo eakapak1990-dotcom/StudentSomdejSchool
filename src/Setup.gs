@@ -48,7 +48,12 @@ function setupAllSheets() {
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.LINE_BINDINGS, [
     'BindingID', 'StudentID', 'LineUserID', 'ParentDisplayName',
-    'BoundAt', 'Active'
+    'BoundAt', 'Active', 'PinCode'
+  ]);
+
+  createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.ANNOUNCEMENTS, [
+    'AnnouncementID', 'Title', 'Message', 'Type',
+    'CreatedAt', 'Active', 'CreatedBy'
   ]);
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.AUDIT_LOG, [

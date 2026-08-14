@@ -108,15 +108,15 @@ function flexInfoRow_(label, value) {
   };
 }
 
-/** แถวคะแนน (ตัวหนา + สีตามประเภท) */
-function flexPointsRow_(text, color) {
+/** แถวคะแนน (ตัวหนา + สีตามประเภท) — รองรับ label เอง เช่น 'คะแนนเดิม' / 'คะแนนที่ตัด' */
+function flexPointsRow_(label, text, color) {
   return {
     type: 'box',
     layout: 'horizontal',
     spacing: 'sm',
     contents: [
-      { type: 'text', text: 'คะแนน', color: '#8C96B3', size: 'xs', flex: 2, gravity: 'center' },
-      { type: 'text', text: String(text), color: color || '#1A2233', size: 'md', weight: 'bold', flex: 5, gravity: 'center' }
+      { type: 'text', text: String(label || 'คะแนน'), color: '#8C96B3', size: 'xs', flex: 2, gravity: 'center' },
+      { type: 'text', text: String(text === undefined || text === null ? '-' : text), color: color || '#1A2233', size: 'md', weight: 'bold', flex: 5, gravity: 'center' }
     ]
   };
 }
@@ -129,7 +129,13 @@ function buildEventFlexMessage_(ev) {
     flexInfoRow_('วันเวลา', ev.timestampText),
     flexInfoRow_('เหตุการณ์', ev.eventText || '-')
   ];
-  if (ev.pointsText) bodyContents.push(flexPointsRow_(ev.pointsText, ev.pointsColor));
+  if (ev.pointsRows && ev.pointsRows.length) {
+    ev.pointsRows.forEach(function (r) {
+      bodyContents.push(flexPointsRow_(r.label, r.text, r.color));
+    });
+  } else if (ev.pointsText) {
+    bodyContents.push(flexPointsRow_('คะแนน', ev.pointsText, ev.pointsColor));
+  }
   if (ev.extraText) bodyContents.push(flexInfoRow_('หมายเหตุ', ev.extraText));
   bodyContents.push(flexInfoRow_('ผู้บันทึก', ev.recorder || 'ระบบอัตโนมัติ'));
   if (ev.contact) bodyContents.push(flexInfoRow_('ติดต่อโรงเรียน', ev.contact));
@@ -214,24 +220,32 @@ function getStudentDisplayName_(st) {
 }
 
 /** ① นักเรียนถูกตัดคะแนน / ได้รับการเพิ่มคะแนน */
-function notifyScoreEvent_(studentId, type, amount, reason, recorder, timestamp) {
+function notifyScoreEvent_(studentId, type, amount, oldScore, newScore, reason, recorder, timestamp) {
   const st = findStudentById_(studentId);
   if (!st) return { sent: false };
   const isDeduct = type === 'deduct';
   if (!isDeduct && getConfigValue_('LINE_NOTIFY_SCORE_ADD') !== 'true') {
     return { sent: false, notified: 0, errors: ['ปิดการแจ้งเตือนคะแนนเพิ่ม (LINE_NOTIFY_SCORE_ADD)'] };
   }
+  const oldVal = oldScore === undefined || oldScore === null || isNaN(Number(oldScore)) ? null : Number(oldScore);
+  const newVal = newScore === undefined || newScore === null || isNaN(Number(newScore)) ? null : Number(newScore);
+  const deltaColor = isDeduct ? '#C2483A' : '#1F8A5B';
+  const deltaText = (isDeduct ? '-' : '+') + amount + ' คะแนน';
   return notifyStudentEvent_(studentId, {
     title: isDeduct ? '⚠️ นักเรียนถูกตัดคะแนนความประพฤติ' : '🌟 นักเรียนได้รับคะแนนความประพฤติ',
-    accentColor: isDeduct ? '#C2483A' : '#1F8A5B',
+    accentColor: deltaColor,
     studentName: getStudentDisplayName_(st),
     studentClass: (st.Grade || '-') + '/' + (st.Room || '-'),
     timestampText: thaiTimestampText_(timestamp || new Date()),
     eventText: reason || '-',
-    pointsText: (isDeduct ? '-' : '+') + amount + ' คะแนน',
-    pointsColor: isDeduct ? '#C2483A' : '#1F8A5B',
+    pointsRows: [
+      { label: 'คะแนนปัจจุบัน', text: oldVal === null ? '-' : oldVal + ' คะแนน', color: '#1A2233' },
+      { label: isDeduct ? 'คะแนนที่ตัด' : 'คะแนนที่เพิ่ม', text: deltaText, color: deltaColor },
+      { label: 'คะแนนคงเหลือ', text: newVal === null ? '-' : newVal + ' คะแนน', color: '#1A2233' }
+    ],
     recorder: recorder || '-',
-    altText: (isDeduct ? 'ตัดคะแนน' : 'เพิ่มคะแนน') + ' ' + amount + ' คะแนน: ' + getStudentDisplayName_(st)
+    altText: (isDeduct ? 'ตัดคะแนน' : 'เพิ่มคะแนน') + ' ' + amount + ' คะแนน' +
+      (newVal === null ? '' : ' (คงเหลือ ' + newVal + ')') + ': ' + getStudentDisplayName_(st)
   });
 }
 

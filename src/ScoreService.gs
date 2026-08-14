@@ -69,7 +69,7 @@ function api_addScore_(token, payload) {
 
     // แจ้งเตือนผู้ปกครองผ่าน LINE (ถ้าเชื่อมแล้ว) — ไม่กระทบการบันทึกหลักถ้า LINE error
     try {
-      notifyScoreEvent_(studentId, type, amount, reason, session.fullName, new Date());
+      notifyScoreEvent_(studentId, type, amount, oldScore, newScore, reason, session.fullName, new Date());
     } catch (lineErr) {
       Logger.log('ส่ง LINE แจ้งเตือนคะแนนไม่สำเร็จ: ' + lineErr.message);
     }

@@ -631,11 +631,17 @@
       <div class="card">
         <div class="card-title"><i class="bi bi-link-45deg" style="color:var(--navy-700)"></i> เชื่อมบัญชี LINE กับนักเรียน</div>
         <div class="text-secondary small mb-2">
-          กรอกรหัสนักเรียนและเบอร์โทรผู้ปกครองที่แจ้งไว้กับโรงเรียน เพื่อยืนยันความสัมพันธ์ก่อนเชื่อมต่อ
-          (เมื่อเชื่อมแล้วระบบจะแจ้งเตือนคะแนน คำร้อง และเอกสารของนักเรียนผ่าน LINE ให้อัตโนมัติ)
+          กรอกรหัสนักเรียน + เลือกวิธีการยืนยันตัวตน (เบอร์โทรผู้ปกครอง หรือเลขบัตรประชาชนของนักเรียน อย่างใดอย่างหนึ่ง)
+          เมื่อเชื่อมแล้วระบบจะแจ้งเตือนคะแนน คำร้อง และเอกสารของนักเรียนผ่าน LINE ให้อัตโนมัติ
         </div>
         <input class="form-control mb-2" id="bind_studentId" placeholder="รหัสนักเรียน เช่น 26165">
-        <input class="form-control mb-2" id="bind_phone" placeholder="เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)">
+        <label class="form-label small fw-semibold">วิธีการยืนยันตัวตน</label>
+        <select class="form-select mb-2" id="bind_method" onchange="onBindMethodChange()">
+          <option value="">-- เลือกวิธีการยืนยัน --</option>
+          <option value="phone">เบอร์โทรผู้ปกครอง</option>
+          <option value="citizen">เลขบัตรประชาชนของนักเรียน</option>
+        </select>
+        <input class="form-control mb-2" id="bind_verify" placeholder="เลือกวิธีการยืนยันก่อน">
         <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
         <button class="btn btn-navy w-100" onclick="doBind()"><i class="bi bi-link-45deg me-1"></i> เชื่อมต่อ</button>
       </div>
@@ -911,12 +917,37 @@
     }
 
     /* ============ BIND ============ */
+    function onBindMethodChange() {
+      const m = $("bind_method").value;
+      const v = $("bind_verify");
+      v.value = "";
+      if (m === "phone") {
+        v.placeholder = "เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)";
+        v.inputMode = "tel";
+      } else if (m === "citizen") {
+        v.placeholder = "เลขบัตรประชาชนของนักเรียน 13 หลัก";
+        v.inputMode = "numeric";
+      } else {
+        v.placeholder = "เลือกวิธีการยืนยันก่อน";
+        v.inputMode = "text";
+      }
+    }
+
     function doBind() {
       const studentId = $("bind_studentId").value.trim();
-      const phone = $("bind_phone").value.trim();
+      const method = $("bind_method").value;
+      const verifyValue = $("bind_verify").value.trim().replace(/\s|-/g, "");
       const pin = $("bind_pin").value.trim();
-      if (!studentId || !phone || !pin) {
-        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
+      if (!studentId || !method || !verifyValue || !pin) {
+        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุรหัสนักเรียน วิธีการยืนยัน ค่ายืนยัน และรหัส PIN" });
+        return;
+      }
+      if (method === "phone" && !/^0?\d{9}$/.test(verifyValue)) {
+        Swal.fire({ icon: "warning", title: "เบอร์โทรศัพท์ไม่ถูกต้อง", text: "กรุณากรอกเบอร์โทร 9-10 หลัก" });
+        return;
+      }
+      if (method === "citizen" && !/^\d{13}$/.test(verifyValue)) {
+        Swal.fire({ icon: "warning", title: "เลขบัตรประชาชนไม่ถูกต้อง", text: "กรุณากรอกเลขบัตรประชาชน 13 หลัก" });
         return;
       }
       if (!/^\d{6}$/.test(pin)) {
@@ -946,14 +977,14 @@
               showConfirmButton: false,
             });
             $("bind_studentId").value = "";
-            $("bind_phone").value = "";
+            $("bind_verify").value = "";
             $("bind_pin").value = "";
             loadMyStudents(true);
           })
           .withFailureHandler(function (err) {
             Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
           })
-          .apiLiffBind(lineUserId, studentId, phone, pin);
+          .apiLiffBind(lineUserId, studentId, method, verifyValue, pin);
       });
     }
 

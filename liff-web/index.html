@@ -3,7 +3,7 @@
 
 <!--
   ═══════════════════════════════════════════════════════════════════════
-  หน้า LIFF แบบ STANDALONE (web v2)
+  หน้า LIFF แบบ STANDALONE (web v3)
   ───────────────────────────────────────────────────────────────────────
   เหตุผล: Google Apps Script (HtmlService) ฝังทุกหน้าใน iframe
   (script.googleusercontent.com/userCodeAppPanel) ทำให้ LINE ไม่ attach
@@ -627,18 +627,19 @@
       <div class="brand-mark">SA</div>
       <div>
         <div class="app-name">ระบบสารสนเทศโรงเรียน</div>
-        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง · web v2</div>
+        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง · web v3</div>
       </div>
     </div>
   </header>
 
-  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE... (web v2)</div>
+  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE... (web v3)</div>
 
   <div class="tabs">
     <button class="tab active" data-tab="home" onclick="switchLiffTab('home')">หน้าแรก</button>
     <button class="tab" data-tab="score" onclick="switchLiffTab('score')">คะแนน</button>
     <button class="tab" data-tab="leave" onclick="switchLiffTab('leave')">ขออนุญาตออกนอกพื้นที่</button>
     <button class="tab" data-tab="news" onclick="switchLiffTab('news')">ข่าวสาร</button>
+    <button class="tab" data-tab="settings" onclick="switchLiffTab('settings')">ตั้งค่าระบบ</button>
   </div>
 
   <div class="wrap">
@@ -647,41 +648,6 @@
     <div class="tab-body active" id="tab-home">
       <div class="section-label"><span class="bar"></span> นักเรียนของฉัน</div>
       <div id="homeStudents"></div>
-
-      <div class="card">
-        <div class="card-title"><i class="bi bi-link-45deg" style="color:var(--navy-700)"></i> เชื่อมบัญชี LINE กับนักเรียน</div>
-        <div class="text-secondary small mb-2">
-          กรอกรหัสนักเรียนและเบอร์โทรผู้ปกครองที่แจ้งไว้กับโรงเรียน เพื่อยืนยันความสัมพันธ์ก่อนเชื่อมต่อ
-          (เมื่อเชื่อมแล้วระบบจะแจ้งเตือนคะแนน คำร้อง และเอกสารของนักเรียนผ่าน LINE ให้อัตโนมัติ)
-        </div>
-        <input class="form-control mb-2" id="bind_studentId" placeholder="รหัสนักเรียน เช่น 26165">
-        <input class="form-control mb-2" id="bind_phone" placeholder="เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)">
-        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
-        <button class="btn btn-navy w-100" onclick="doBind()"><i class="bi bi-link-45deg me-1"></i> เชื่อมต่อ</button>
-      </div>
-
-      <div class="card pin-card" id="pinCard" style="display:none">
-        <div class="card-title"><i class="bi bi-shield-lock" style="color:var(--gold-500)"></i> ความปลอดภัยของบัญชี</div>
-        <div class="text-secondary small mb-2">
-          เปลี่ยนรหัส PIN หรือยกเลิกการเชื่อมต่อของนักเรียนคนใดคนหนึ่ง (ต้องยืนยันรหัส PIN ปัจจุบัน)
-        </div>
-        <label class="form-label small fw-semibold">เลือกนักเรียน</label>
-        <select class="form-select mb-2" id="pin_studentSelect">
-          <option value="">-- เลือกนักเรียน --</option>
-        </select>
-        <label class="form-label small fw-semibold">รหัส PIN ปัจจุบัน</label>
-        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 6 หลัก">
-        <div class="row g-2 mb-3">
-          <div class="col-6">
-            <button class="btn btn-navy w-100" onclick="doChangePin()"><i class="bi bi-key me-1"></i> เปลี่ยน PIN</button>
-          </div>
-          <div class="col-6">
-            <button class="btn btn-outline-danger w-100" style="border-radius:10px" onclick="doUnbind()"><i class="bi bi-unlink me-1"></i> ยกเลิกการเชื่อม</button>
-          </div>
-        </div>
-        <div class="text-secondary small"><i class="bi bi-info-circle me-1"></i>เมื่อเปลี่ยน PIN จะต้องกรอกรหัสใหม่เพื่อยืนยันรหัส PIN ใหม่ในช่องถัดไป</div>
-        <input class="form-control mt-2" id="pin_new" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN ใหม่ (เฉพาะตอนเปลี่ยน PIN)">
-      </div>
     </div>
 
     <!-- ============ SCORE ============ -->
@@ -739,6 +705,58 @@
       </div>
     </div>
 
+    <!-- ============ SETTINGS (ตั้งค่าระบบ) ============ -->
+    <div class="tab-body" id="tab-settings">
+      <div class="card">
+        <div class="card-title"><i class="bi bi-link-45deg" style="color:var(--navy-700)"></i> เชื่อมบัญชี LINE กับนักเรียน</div>
+        <div class="text-secondary small mb-2">
+          กรอกรหัสนักเรียน + เลือกวิธีการยืนยันตัวตน (เบอร์โทรผู้ปกครอง หรือเลขบัตรประชาชนของนักเรียน อย่างใดอย่างหนึ่ง)
+          เมื่อเชื่อมแล้วระบบจะแจ้งเตือนคะแนน คำร้อง และเอกสารของนักเรียนผ่าน LINE ให้อัตโนมัติ
+        </div>
+        <input class="form-control mb-2" id="bind_studentId" placeholder="รหัสนักเรียน เช่น 26165">
+        <label class="form-label small fw-semibold">วิธีการยืนยันตัวตน</label>
+        <select class="form-select mb-2" id="bind_method" onchange="onBindMethodChange()">
+          <option value="">-- เลือกวิธีการยืนยัน --</option>
+          <option value="phone">เบอร์โทรผู้ปกครอง</option>
+          <option value="citizen">เลขบัตรประชาชนของนักเรียน</option>
+        </select>
+        <input class="form-control mb-2" id="bind_verify" placeholder="เลือกวิธีการยืนยันก่อน">
+        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
+        <button class="btn btn-navy w-100" onclick="doBind()"><i class="bi bi-link-45deg me-1"></i> เชื่อมต่อ</button>
+      </div>
+
+      <div class="card pin-card" id="pinCard" style="display:none">
+        <div class="card-title"><i class="bi bi-shield-lock" style="color:var(--gold-500)"></i> ความปลอดภัยของบัญชี</div>
+        <div class="text-secondary small mb-2">
+          เปลี่ยนรหัส PIN หรือยกเลิกการเชื่อมต่อของนักเรียนคนใดคนหนึ่ง (ต้องยืนยันรหัส PIN ปัจจุบัน)
+        </div>
+        <label class="form-label small fw-semibold">เลือกนักเรียน</label>
+        <select class="form-select mb-2" id="pin_studentSelect">
+          <option value="">-- เลือกนักเรียน --</option>
+        </select>
+        <label class="form-label small fw-semibold">รหัส PIN ปัจจุบัน</label>
+        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 6 หลัก">
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <button class="btn btn-navy w-100" onclick="doChangePin()"><i class="bi bi-key me-1"></i> เปลี่ยน PIN</button>
+          </div>
+          <div class="col-6">
+            <button class="btn btn-outline-danger w-100" style="border-radius:10px" onclick="doUnbind()"><i class="bi bi-unlink me-1"></i> ยกเลิกการเชื่อม</button>
+          </div>
+        </div>
+        <div class="text-secondary small"><i class="bi bi-info-circle me-1"></i>เมื่อเปลี่ยน PIN จะต้องกรอกรหัสใหม่เพื่อยืนยันรหัส PIN ใหม่ในช่องถัดไป</div>
+        <input class="form-control mt-2" id="pin_new" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN ใหม่ (เฉพาะตอนเปลี่ยน PIN)">
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="bi bi-box-arrow-right" style="color:var(--bad)"></i> ออกจากระบบ</div>
+        <div class="text-secondary small mb-2">
+          ออกจากบัญชี LINE บนเครื่องนี้ — ข้อมูลการเชื่อมต่อยังคงอยู่ เปิด LIFF ใหม่อีกครั้งเพื่อเข้าใช้
+        </div>
+        <button class="btn btn-outline-danger w-100" style="border-radius:10px" onclick="doLiffLogout()"><i class="bi bi-box-arrow-right me-1"></i> ออกจากระบบ</button>
+      </div>
+    </div>
+
   </div>
 
   <script>
@@ -783,6 +801,7 @@
         loadLiffNews();
         if (!myStudents.length) loadMyStudents();
       }
+      if (name === "settings" && !myStudents.length) loadMyStudents();
     }
 
     // ===== เรียก backend (GAS doPost) ผ่าน HTTP — รองรับ CORS (text/plain ไม่มี preflight) =====
@@ -905,24 +924,26 @@
       var el = $("homeStudents");
       if (!myStudents.length) {
         el.innerHTML =
-          '<div class="card text-center text-secondary small py-4">ยังไม่มีนักเรียนที่เชื่อมต่อ — กรอกข้อมูลด้านล่างเพื่อเชื่อมบัญชี</div>';
+          '<div class="card text-center text-secondary small py-4">ยังไม่ได้เชื่อมต่อบัญชี LINE — เปิดแท็บ <b>ตั้งค่าระบบ</b> เพื่อเชื่อมต่อกับนักเรียน</div>';
         return;
       }
-      el.innerHTML = myStudents
-        .map(function (s) {
-          var initials = (s.name || "-").replace(/^(เด็กชาย|เด็กหญิง|นาย|นางสาว|นาง|นาย)\s*/i, "").split(" ").map(function (w) { return (w || "")[0] || ""; }).join("").slice(0, 2) || "?";
-          return (
-            '<div class="student-card">' +
-            '<div class="avatar-mini">' + initials + "</div>" +
-            '<div class="info">' +
-            '<div class="name">' + s.name + "</div>" +
-            '<div class="sub">' + s.className + " · รหัส " + s.studentId + "</div>" +
-            "</div>" +
-            '<div class="score-pill-mini">' + s.currentScore + "</div>" +
-            "</div>"
-          );
-        })
-        .join("");
+      el.innerHTML =
+        myStudents
+          .map(function (s) {
+            var initials = (s.name || "-").replace(/^(เด็กชาย|เด็กหญิง|นาย|นางสาว|นาง|นาย)\s*/i, "").split(" ").map(function (w) { return (w || "")[0] || ""; }).join("").slice(0, 2) || "?";
+            return (
+              '<div class="student-card">' +
+              '<div class="avatar-mini">' + initials + "</div>" +
+              '<div class="info">' +
+              '<div class="name">' + s.name + "</div>" +
+              '<div class="sub">' + s.className + " · รหัส " + s.studentId + "</div>" +
+              "</div>" +
+              '<div class="score-pill-mini">' + s.currentScore + "</div>" +
+              "</div>"
+            );
+          })
+          .join("") +
+        '<div class="card text-center small text-secondary"><i class="bi bi-gear me-1"></i>จัดการการเชื่อมต่อ / เปลี่ยน PIN / ออกจากระบบ — เปิดแท็บ <b>ตั้งค่าระบบ</b></div>';
     }
 
     function fillStudentSelects() {
@@ -939,12 +960,37 @@
     }
 
     /* ============ BIND ============ */
+    function onBindMethodChange() {
+      var m = $("bind_method").value;
+      var v = $("bind_verify");
+      v.value = "";
+      if (m === "phone") {
+        v.placeholder = "เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)";
+        v.inputMode = "tel";
+      } else if (m === "citizen") {
+        v.placeholder = "เลขบัตรประชาชนของนักเรียน 13 หลัก";
+        v.inputMode = "numeric";
+      } else {
+        v.placeholder = "เลือกวิธีการยืนยันก่อน";
+        v.inputMode = "text";
+      }
+    }
+
     function doBind() {
       var studentId = $("bind_studentId").value.trim();
-      var phone = $("bind_phone").value.trim();
+      var method = $("bind_method").value;
+      var verifyValue = $("bind_verify").value.trim().replace(/\s|-/g, "");
       var pin = $("bind_pin").value.trim();
-      if (!studentId || !phone || !pin) {
-        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
+      if (!studentId || !method || !verifyValue || !pin) {
+        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุรหัสนักเรียน วิธีการยืนยัน ค่ายืนยัน และรหัส PIN" });
+        return;
+      }
+      if (method === "phone" && !/^0?\d{9}$/.test(verifyValue)) {
+        Swal.fire({ icon: "warning", title: "เบอร์โทรศัพท์ไม่ถูกต้อง", text: "กรุณากรอกเบอร์โทร 9-10 หลัก" });
+        return;
+      }
+      if (method === "citizen" && !/^\d{13}$/.test(verifyValue)) {
+        Swal.fire({ icon: "warning", title: "เลขบัตรประชาชนไม่ถูกต้อง", text: "กรุณากรอกเลขบัตรประชาชน 13 หลัก" });
         return;
       }
       if (!/^\d{6}$/.test(pin)) {
@@ -960,7 +1006,7 @@
         cancelButtonText: "ยกเลิก",
       }).then(function (r) {
         if (!r.isConfirmed) return;
-        api("liffBind", { lineUserId: lineUserId, studentId: studentId, parentPhone: phone, pin: pin }).then(function (res) {
+        api("liffBind", { lineUserId: lineUserId, studentId: studentId, verifyMethod: method, verifyValue: verifyValue, pin: pin }).then(function (res) {
           if (!res.success) {
             Swal.fire({ icon: "error", title: "เชื่อมต่อไม่สำเร็จ", text: res.message });
             return;
@@ -973,9 +1019,10 @@
             showConfirmButton: false,
           });
           $("bind_studentId").value = "";
-          $("bind_phone").value = "";
+          $("bind_verify").value = "";
           $("bind_pin").value = "";
           loadMyStudents(true);
+          switchLiffTab("home");
         });
       });
     }
@@ -1228,6 +1275,36 @@
           $("pin_current").value = "";
           $("pin_new").value = "";
           loadMyStudents(true);
+        });
+      });
+    }
+
+    /* ============ ออกจากระบบ (ตั้งค่าระบบ) ============ */
+    function doLiffLogout() {
+      Swal.fire({
+        icon: "question",
+        title: "ออกจากระบบ?",
+        html: "จะออกจากบัญชี LINE บนเครื่องนี้ — ข้อมูลการเชื่อมต่อยังคงอยู่เหมือนเดิม",
+        showCancelButton: true,
+        confirmButtonText: "ออกจากระบบ",
+        cancelButtonText: "ยกเลิก",
+      }).then(function (r) {
+        if (!r.isConfirmed) return;
+        try {
+          if (liff && liff.logout) liff.logout();
+        } catch (e) {
+          /* บางสภาพแวดล้อมไม่อนุญาตให้ logout — ข้าม */
+        }
+        Swal.fire({ icon: "success", title: "ออกจากระบบแล้ว", timer: 1400, showConfirmButton: false }).then(function () {
+          try {
+            if (liff && liff.closeWindow) liff.closeWindow();
+          } catch (e) {
+            /* ข้าม */
+          }
+          // เปิดในเบราว์เซอร์นอกแอป LINE — รีโหลดกลับสู่หน้าแรก
+          setTimeout(function () {
+            if (window.top === window) location.reload();
+          }, 1200);
         });
       });
     }

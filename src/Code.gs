@@ -58,7 +58,7 @@ function doPost(e) {
 
       // ===== LIFF API (หน้า LIFF โฮสต์นอก GAS เรียกผ่าน HTTP — ดู liff-web/index.html) =====
       case 'liffBind':
-        return jsonResponse_(apiLiffBind(data.lineUserId, data.studentId, data.parentPhone, data.pin));
+        return jsonResponse_(apiLiffBind(data.lineUserId, data.studentId, data.verifyMethod, data.verifyValue, data.pin));
       case 'liffUnbind':
         return jsonResponse_(apiLiffUnbind(data.lineUserId, data.studentId, data.pin));
       case 'liffChangePin':

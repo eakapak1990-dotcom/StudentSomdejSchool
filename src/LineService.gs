@@ -574,38 +574,56 @@ function normalizePhone_(p) {
   return s;
 }
 
-function apiLiffBind(lineUserId, studentId, parentPhone, pin) {
+/**
+ * ผูกบัญชี LINE กับนักเรียน
+ * verifyMethod: 'phone' (เบอร์โทรผู้ปกครอง) หรือ 'citizen' (เลขบัตรประชาชนของนักเรียน) — อย่างใดอย่างหนึ่ง
+ */
+function apiLiffBind(lineUserId, studentId, verifyMethod, verifyValue, pin) {
   try {
-    if (!lineUserId || !studentId || !parentPhone || !pin) {
-      return { success: false, message: 'กรุณากรอกข้อมูลให้ครบ (รหัสนักเรียน, เบอร์โทร, รหัส PIN)' };
+    if (!lineUserId || !studentId || !verifyMethod || !verifyValue || !pin) {
+      return { success: false, message: 'กรุณากรอกข้อมูลให้ครบ (รหัสนักเรียน, วิธีการยืนยัน, ค่ายืนยัน, รหัส PIN)' };
     }
     pin = String(pin).trim();
     if (!/^\d{6}$/.test(pin)) {
       return { success: false, message: 'รหัส PIN ต้องเป็นตัวเลข 6 หลัก' };
     }
+    verifyMethod = String(verifyMethod).trim();
+    verifyValue = String(verifyValue).trim().replace(/[\s-]/g, '');
+    if (verifyMethod !== 'phone' && verifyMethod !== 'citizen') {
+      return { success: false, message: 'กรุณาเลือกวิธีการยืนยันตัวตน (เบอร์โทรผู้ปกครอง หรือเลขบัตรประชาชนของนักเรียน)' };
+    }
     const st = findStudentById_(String(studentId).trim());
     if (!st) return { success: false, message: 'ไม่พบรหัสนักเรียนนี้ในระบบ' };
     const parent = findParentByStudentId_(st.StudentID);
-    if (!parent || !parent.ParentPhone) {
-      return { success: false, message: 'ไม่พบข้อมูลเบอร์โทรผู้ปกครองของนักเรียนคนนี้ในระบบ' };
+    if (verifyMethod === 'phone') {
+      if (!parent || !parent.ParentPhone) {
+        return { success: false, message: 'ไม่พบข้อมูลเบอร์โทรผู้ปกครองของนักเรียนคนนี้ในระบบ' };
+      }
+      if (normalizePhone_(verifyValue) !== normalizePhone_(parent.ParentPhone)) {
+        return { success: false, message: 'เบอร์โทรศัพท์ไม่ตรงกับข้อมูลผู้ปกครองของนักเรียนคนนี้' };
+      }
+    } else {
+      if (!/^\d{13}$/.test(verifyValue)) {
+        return { success: false, message: 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก' };
+      }
+      const storedCitizen = String(st.CitizenID == null ? '' : st.CitizenID).trim().replace(/[\s-]/g, '');
+      if (storedCitizen !== verifyValue) {
+        return { success: false, message: 'เลขบัตรประชาชนไม่ตรงกับนักเรียนคนนี้' };
+      }
     }
-    const inputPhone = normalizePhone_(parentPhone);
-    const storedPhone = normalizePhone_(parent.ParentPhone);
-    if (inputPhone !== storedPhone) {
-      return { success: false, message: 'เบอร์โทรศัพท์ไม่ตรงกับข้อมูลผู้ปกครองของนักเรียนคนนี้' };
-    }
+    const parentName = (parent && parent.ParentName) ? String(parent.ParentName) : 'ผู้ปกครอง';
     // LockService: กันผูกซ้ำเมื่อกดเชื่อมต่อพร้อมกัน (ตรวจ-แล้ว-เขียน)
     const lock = LockService.getScriptLock();
     lock.waitLock(30000);
     try {
       const existing = getLineBindingsForStudent_(st.StudentID).filter(function (b) { return b.LineUserID === lineUserId; });
       if (existing.length) {
-        return { success: true, alreadyBound: true, studentId: st.StudentID, parentName: parent.ParentName };
+        return { success: true, alreadyBound: true, studentId: st.StudentID, parentName: parentName };
       }
       const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-      sheet.appendRow([Utilities.getUuid(), st.StudentID, lineUserId, parent.ParentName || 'ผู้ปกครอง', new Date(), true, hashPassword_(pin)]);
+      sheet.appendRow([Utilities.getUuid(), st.StudentID, lineUserId, parentName, new Date(), true, hashPassword_(pin)]);
       setStudentLineLinked_(st.StudentID, true);
-      return { success: true, studentId: st.StudentID, parentName: parent.ParentName };
+      return { success: true, studentId: st.StudentID, parentName: parentName };
     } finally {
       lock.releaseLock();
     }

@@ -26,14 +26,37 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    // รองรับทั้ง JSON (text/plain / application/json) และ form-encoded
+    let data;
+    const raw = e && e.postData && e.postData.contents;
+    try {
+      data = JSON.parse(raw || '{}');
+    } catch (err) {
+      data = (e && e.parameter) || {};
+    }
     const action = data.action;
 
     switch (action) {
       case 'login':
         return jsonResponse_(handleLogin_(data.username, data.password));
 
-      // เพิ่ม action handlers อื่นๆ ต่อจากนี้ (เฟสถัดไป)
+      // ===== LIFF API (หน้า LIFF โฮสต์นอก GAS เรียกผ่าน HTTP — ดู liff-web/index.html) =====
+      case 'liffBind':
+        return jsonResponse_(apiLiffBind(data.lineUserId, data.studentId, data.parentPhone, data.pin));
+      case 'liffUnbind':
+        return jsonResponse_(apiLiffUnbind(data.lineUserId, data.studentId, data.pin));
+      case 'liffChangePin':
+        return jsonResponse_(apiLiffChangePin(data.lineUserId, data.studentId, data.oldPin, data.newPin));
+      case 'liffGetMyStudents':
+        return jsonResponse_(apiLiffGetMyStudents(data.lineUserId));
+      case 'liffGetStudentScore':
+        return jsonResponse_(apiLiffGetStudentScore(data.lineUserId, data.studentId));
+      case 'liffGetNotifications':
+        return jsonResponse_(apiLiffGetNotifications(data.lineUserId, data.studentId));
+      case 'liffSubmitLeave':
+        return jsonResponse_(apiLiffSubmitLeave(data.lineUserId, data.studentId, data.reason, data.outTime, data.inTime));
+      case 'liffGetAnnouncements':
+        return jsonResponse_(apiLiffGetAnnouncements(data.lineUserId));
 
       default:
         return jsonResponse_({ success: false, message: 'Unknown action: ' + action });

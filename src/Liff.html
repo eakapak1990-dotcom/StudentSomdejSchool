@@ -607,12 +607,12 @@
       <div class="brand-mark">SA</div>
       <div>
         <div class="app-name">ระบบสารสนเทศโรงเรียน</div>
-        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง · v53</div>
+        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง · v54</div>
       </div>
     </div>
   </header>
 
-  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE... (v53)</div>
+  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE... (v54)</div>
 
   <div class="tabs">
     <button class="tab active" data-tab="home" onclick="switchLiffTab('home')">หน้าแรก</button>
@@ -751,41 +751,105 @@
       }
     }
 
-    /* ============ LINE INIT ============ */
+   /* ============ LINE INIT (DEBUG VERSION) ============ */
+    function showStatus(text, isError) {
+      const el = $("liffStatus");
+      el.className = "liff-status" + (isError ? " error" : "");
+      el.innerHTML = (isError ? '<i class="bi bi-exclamation-triangle me-1"></i> ' : '<i class="bi bi-check2-circle me-1" style="color:var(--good)"></i> ') + text;
+    }
+
+    let debugLog = [];
+    function dlog(msg) {
+      debugLog.push(msg);
+      showStatus(debugLog.join(" → "), false);
+    }
+
     if (!LIFF_ID) {
       showStatus("ระบบยังไม่ได้ตั้งค่า LIFF App ID — กรุณาแจ้งเจ้าหน้าที่โรงเรียน", true);
     } else {
-      liff
-        .init({ liffId: LIFF_ID })
-        .then(function () {
-          // อ่าน LINE userId: ใช้ ID token (scope openid) ก่อน ถ้าไม่มีค่อยดึง profile (scope profile)
-          return new Promise(function (resolve) {
+      dlog("เริ่ม init");
+
+      // ข้อมูลวินิจฉัย: ตรวจว่าหน้านี้รันใน LIFF browser จริงหรือไม่ + LINE version + bridge
+      function buildDiagnostics() {
+        const ua = navigator.userAgent;
+        const uaLower = ua.toLowerCase();
+        const os = /iphone|ipad|ipod/.test(uaLower) ? "iOS" : /android/.test(uaLower) ? "Android" : "Web";
+        const lineVer = (ua.match(/Line\/([\d.]+)/i) || [])[1] || "-";
+        const isLiffBrowser = /LIFF/i.test(ua);
+        const hasTokenInUrl = /[#|&]access_token=/.test(location.hash) || /[?&]access_token=/.test(location.search);
+        const hasBridge = !!window._liff;
+        return [
+          "OS: " + os,
+          "LINE app: " + lineVer,
+          "LIFF browser (UA มีคำว่า LIFF): " + (isLiffBrowser ? "ใช่" : "ไม่ใช่"),
+          "native bridge (_liff): " + (hasBridge ? "มี" : "ไม่มี"),
+          "access_token ใน URL: " + (hasTokenInUrl ? "มี" : "ไม่มี"),
+          "URL: " + location.href.slice(0, 150),
+          "UA เต็ม: " + ua
+        ].join(" | ");
+      }
+      dlog(buildDiagnostics());
+
+      // ตัวจับเวลา ถ้า 8 วิ ยังไม่เสร็จ ให้ฟ้องว่าค้างตรงไหน พร้อมข้อมูลวินิจฉัย
+      let initDone = false;
+      setTimeout(function () {
+        if (!initDone) {
+          showStatus("liff.init() ค้าง เกิน 8 วิ — " + buildDiagnostics(), true);
+        }
+      }, 8000);
+
+      try {
+        liff
+          .init({ liffId: LIFF_ID })
+          .then(function () {
+            initDone = true;
+            dlog("liff.init สำเร็จ, isInClient=" + liff.isInClient() + ", isLoggedIn=" + liff.isLoggedIn());
+
             let uid = null, via = '';
             try {
               const idToken = liff.getDecodedIDToken && liff.getDecodedIDToken();
               uid = idToken && idToken.sub;
               if (uid) via = 'idToken';
-            } catch (e) { via = 'idToken-error'; }
-            if (uid) { resolve({ uid: uid, via: via }); return; }
+              dlog("ลอง idToken: " + (uid ? "ได้ uid" : "ไม่ได้ uid"));
+            } catch (e) {
+              dlog("idToken error: " + e.message);
+            }
+
+            if (uid) {
+              lineUserId = uid;
+              showStatus("เชื่อมต่อ LINE แล้ว [idToken] — สวัสดีครับคุณพ่อคุณแม่", false);
+              loadMyStudents();
+              return;
+            }
+
+            dlog("ลอง getProfile...");
+            let profileDone = false;
+            setTimeout(function () {
+              if (!profileDone) showStatus("getProfile() ค้างเกิน 6 วิ — LIFF permission อาจไม่ครบ", true);
+            }, 6000);
+
             liff.getProfile().then(function (p) {
-              resolve({ uid: p && p.userId, via: 'profile' });
-            }).catch(function () {
-              resolve({ uid: null, via: 'profile-error' });
+              profileDone = true;
+              lineUserId = p && p.userId;
+              if (!lineUserId) {
+                showStatus("getProfile สำเร็จแต่ไม่มี userId", true);
+                return;
+              }
+              showStatus("เชื่อมต่อ LINE แล้ว [profile] — สวัสดีครับคุณพ่อคุณแม่", false);
+              loadMyStudents();
+            }).catch(function (err) {
+              profileDone = true;
+              showStatus("getProfile ล้มเหลว: " + (err && err.message ? err.message : JSON.stringify(err)), true);
             });
+          })
+          .catch(function (err) {
+            initDone = true;
+            showStatus("liff.init ล้มเหลว: " + (err && err.message ? err.message : JSON.stringify(err)) + " (code: " + (err && err.code) + ")", true);
           });
-        })
-        .then(function (r) {
-          lineUserId = r.uid;
-          if (!lineUserId) {
-            showStatus("ไม่สามารถระบุตัวตนบัญชี LINE ได้ [" + r.via + "] — ต้องเปิดในแอป LINE", true);
-            return;
-          }
-          showStatus("เชื่อมต่อ LINE แล้ว [" + r.via + "] — สวัสดีครับคุณพ่อคุณแม่");
-          loadMyStudents();
-        })
-        .catch(function (err) {
-          showStatus("init ล้มเหลว [" + (err && err.message ? err.message.slice(0, 60) : 'unknown') + "] — เปิดในแอป LINE", true);
-        });
+      } catch (syncErr) {
+        initDone = true;
+        showStatus("Exception ก่อนเรียก liff.init: " + syncErr.message, true);
+      }
     }
 
     /* ============ HOME: นักเรียนของฉัน ============ */
@@ -1170,7 +1234,7 @@
           .apiLiffUnbind(lineUserId, studentId, pin);
       });
     }
-  </script>
+   </script>
 </body>
 
 </html>

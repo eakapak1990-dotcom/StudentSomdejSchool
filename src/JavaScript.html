@@ -2269,8 +2269,8 @@
             <input class="form-control" id="ls_liffId" value="${s.liffId}" placeholder="เช่น 2001234567-xxxx" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
           <div class="col-md-6">
-            <label class="form-label small fw-semibold">LINE Login Channel Secret <span class="text-secondary" style="font-weight:400;font-size:.78rem">(ใช้ตรวจสอบ ID Token — ใส่แล้วระบบบังคับยืนยันตัวตน)</span></label>
-            <input type="password" class="form-control" id="ls_secret" value="${s.channelSecret}" autocomplete="off" placeholder="Channel Secret จาก LINE Developers" ${lineSettingsLocked ? "disabled" : ""}>
+            <label class="form-label small fw-semibold">LINE Login Channel Secret <span class="text-secondary" style="font-weight:400;font-size:.78rem">(ไม่จำเป็นแล้ว — ระบบตรวจสอบ ID Token ผ่าน API ของ LINE โดยใช้ LIFF App ID ข้างบน)</span></label>
+            <input type="password" class="form-control" id="ls_secret" value="${s.channelSecret}" autocomplete="off" placeholder="Channel Secret จาก LINE Developers (เผื่อไว้ ไม่ใช้ตรวจสอบแล้ว)" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">ช่องทางติดต่อกลับโรงเรียน (แสดงในข้อความแจ้งเตือน)</label>

@@ -37,18 +37,18 @@ function doPost(e) {
     const action = data.action;
 
     // ===== LIFF: ตรวจยืนยันตัวตน LINE (ID Token) ก่อนใช้ lineUserId =====
-    // ทำงานทันทีเมื่อตั้งค่า LINE_CHANNEL_SECRET ในหน้า "การแจ้งเตือน LINE" — ยังไม่ได้ตั้ง = ใช้วิธีเดิมชั่วคราว
+    // ทำงานทุกคำขอ LIFF เมื่อตั้งค่า LINE_LIFF_ID แล้ว — client ต้องส่ง idToken (liff.getIDToken())
     const LIFF_IDENTITY_ACTIONS = ['liffBind', 'liffUnbind', 'liffChangePin', 'liffGetMyStudents', 'liffGetStudentScore', 'liffGetNotifications', 'liffSubmitLeave'];
     if (LIFF_IDENTITY_ACTIONS.indexOf(action) !== -1) {
-      const secret = String(getConfigValue_('LINE_CHANNEL_SECRET') || '').trim();
-      if (secret) {
+      const liffId = String(getConfigValue_('LINE_LIFF_ID') || '').trim();
+      if (liffId) {
         const verified = verifyLineIdToken_(data.idToken);
         if (!verified.ok) {
           return jsonResponse_({ success: false, message: 'ไม่สามารถยืนยันตัวตน LINE ได้ — ' + verified.message });
         }
         data.lineUserId = verified.lineUserId; // ใช้ตัวตนจาก token ที่ตรวจสอบแล้วเท่านั้น
       } else {
-        Logger.log('WARN: ยังไม่ตั้งค่า LINE_CHANNEL_SECRET — LIFF ยังเชื่อ lineUserId จาก client (ควรตั้งค่าโดยด่วน)');
+        Logger.log('WARN: ยังไม่ตั้งค่า LINE_LIFF_ID — LIFF ยังเชื่อ lineUserId จาก client (ควรตั้งค่าโดยด่วน)');
       }
     }
 

@@ -402,7 +402,7 @@ function api_saveLineSettings_(token, settings) {
       return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการตั้งค่า LINE — เฉพาะผู้ดูแลระบบ' };
     }
     setConfigValue_('LINE_CHANNEL_ACCESS_TOKEN', String(settings.channelAccessToken || '').trim(), 'LINE OA Channel Access Token (Messaging API)');
-    setConfigValue_('LINE_CHANNEL_SECRET', String(settings.channelSecret || '').trim(), 'LINE Login Channel Secret (สำหรับตรวจสอบ ID Token)');
+    setConfigValue_('LINE_CHANNEL_SECRET', String(settings.channelSecret || '').trim(), 'LINE Login Channel Secret (ไม่ใช้ตรวจสอบแล้ว — เก็บเผื่อ)');
     setConfigValue_('LINE_LIFF_ID', String(settings.liffId || '').trim(), 'LINE LIFF App ID');
     setConfigValue_('LINE_NOTIFY_SCORE_ADD', settings.notifyScoreAdd ? 'true' : 'false', 'แจ้งเตือนเมื่อนักเรียนได้คะแนนเพิ่ม (true/false)');
     setConfigValue_('LINE_CONTACT_CHANNEL', String(settings.contactChannel || '').trim(), 'ช่องทางติดต่อกลับโรงเรียน');
@@ -509,43 +509,48 @@ function base64UrlDecodeText_(s) {
 }
 
 /**
- * ตรวจสอบ LINE ID Token (JWT) ด้วย Channel Secret — HS256
+ * ตรวจสอบ LINE ID Token (JWT) ผ่าน LINE API — verify id_token
+ * LINE Login v2.1 เซ็น ID Token ด้วย RS256 (ไม่ใช่ HS256 กับ Channel Secret)
+ * ดังนั้นจึงส่ง token ไปยืนยันที่ endpoint ทางการของ LINE แทนการแกะ JWT เอง
+ * ต้องตั้งค่า LINE_LIFF_ID ในหน้า "การแจ้งเตือน LINE" (channel ID = เลขนำหน้า LIFF ID)
  * คืน { ok:true, lineUserId, name } หรือ { ok:false, message }
- * ต้องตั้งค่า LINE_CHANNEL_SECRET ในหน้า "การแจ้งเตือน LINE" ก่อน ระบบถึงจะบังคับใช้
  */
 function verifyLineIdToken_(idToken) {
   try {
-    const secret = String(getConfigValue_('LINE_CHANNEL_SECRET') || '').trim();
-    if (!secret) return { ok: false, message: 'ยังไม่ได้ตั้งค่า LINE Channel Secret' };
-    const parts = String(idToken || '').split('.');
-    if (parts.length !== 3) return { ok: false, message: 'รูปแบบ ID Token ไม่ถูกต้อง' };
-    const header = JSON.parse(base64UrlDecodeText_(parts[0]));
-    const payload = JSON.parse(base64UrlDecodeText_(parts[1]));
-    if (header.alg !== 'HS256') return { ok: false, message: 'อัลกอริทึมลายเซ็นไม่รองรับ' };
+    const liffId = String(getConfigValue_('LINE_LIFF_ID') || '').trim();
+    const channelId = String(liffId).split('-')[0];
+    if (!channelId) return { ok: false, message: 'ยังไม่ได้ตั้งค่า LIFF App ID' };
+    const token = String(idToken || '').trim();
+    if (!token || token.split('.').length !== 3) return { ok: false, message: 'รูปแบบ ID Token ไม่ถูกต้อง' };
 
-    // ตรวจสอบลายเซ็น: HMAC-SHA256('header.payload', secret)
-    const expected = Utilities.computeHmacSha256Signature(parts[0] + '.' + parts[1], secret).map(b => b & 255);
-    const actual = Array.prototype.slice.call(base64UrlDecodeBytes_(parts[2])).map(b => b & 255);
-    if (expected.length !== actual.length) return { ok: false, message: 'ลายเซ็น ID Token ไม่ถูกต้อง' };
-    for (let i = 0; i < expected.length; i++) {
-      if (expected[i] !== actual[i]) return { ok: false, message: 'ลายเซ็น ID Token ไม่ถูกต้อง' };
+    // LINE ตรวจลายเซ็น (RS256) + อายุ + client_id ให้เอง
+    const res = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+      method: 'post',
+      payload: { id_token: token, client_id: channelId },
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) {
+      let detail = '';
+      try {
+        const body = JSON.parse(res.getContentText());
+        if (body.error_description) detail = ' — ' + String(body.error_description);
+      } catch (e) { /* ข้าม */ }
+      return { ok: false, message: 'LINE ปฏิเสธ ID Token' + detail };
     }
 
-    // อายุ + ผู้ให้ออก + ผู้รับ (channel/LIFF)
-    if (!payload.exp || Date.now() / 1000 > Number(payload.exp)) {
-      return { ok: false, message: 'ID Token หมดอายุแล้ว' };
-    }
+    // ผ่านการยืนยันจาก LINE แล้ว — ถอด payload เพื่อเอาตัวตน + ตรวจซ้ำชั้น 2
+    const payload = JSON.parse(base64UrlDecodeText_(token.split('.')[1]));
     if (payload.iss && payload.iss !== 'https://access.line.me') {
       return { ok: false, message: 'ผู้ออก ID Token ไม่ถูกต้อง' };
     }
-    if (payload.aud && payload.aud !== String(getConfigValue_('LINE_LIFF_ID') || '').trim()) {
-      return { ok: false, message: 'ID Token ไม่ตรงกับ LIFF app นี้' };
+    if (payload.aud && String(payload.aud) !== channelId) {
+      return { ok: false, message: 'ID Token ไม่ตรงกับ LINE Login channel นี้' };
     }
     if (!payload.sub) return { ok: false, message: 'ID Token ไม่มี sub' };
     return { ok: true, lineUserId: payload.sub, name: payload.name || '' };
   } catch (e) {
     Logger.log('verifyLineIdToken_ error: ' + e.message);
-    return { ok: false, message: 'ID Token ไม่ถูกต้อง' };
+    return { ok: false, message: 'ไม่สามารถติดต่อ LINE เพื่อยืนยันตัวตนได้' };
   }
 }
 

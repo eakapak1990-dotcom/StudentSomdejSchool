@@ -50,14 +50,25 @@ function api_addScore_(token, payload) {
     sheet.getRange(rowIndex + 1, colScore + 1).setValue(newScore);
     sheet.getRange(rowIndex + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
 
+    // วัน/เวลาที่เกิดเหตุ (ไม่บังคับ) — ใช้ย้อนรอยเหตุการณ์ เช่น เหตุเกิดก่อนวันที่บันทึก
+    const eventTime = String(payload.eventTime || '').trim();
+    if (eventTime && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(eventTime)) {
+      return { success: false, message: 'รูปแบบวัน/เวลาที่เกิดเหตุไม่ถูกต้อง' };
+    }
+
     // บันทึกลง ScoreLogs
     const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
+    ensureScoreLogEventTimeColumn_();
     const logId = Utilities.getUuid();
     const recordSequence = getNextRecordSequence_('score');
     logSheet.appendRow([
       logId, studentId, type, amount, reason,
-      session.userId, session.fullName, new Date(), phase
+      session.userId, session.fullName, new Date(), phase, eventTime
     ]);
+    // กัน Google Sheets แปลงวัน/เวลาที่เกิดเหตุเป็นวันที่อัตโนมัติ — เก็บเป็นข้อความ
+    const logRow = logSheet.getLastRow();
+    logSheet.getRange(logRow, 10).setNumberFormat('@');
+    logSheet.getRange(logRow, 10).setValue(eventTime);
 
     // เพิ่ม Timeline event
     const eventType = type === 'add' ? 'add' : 'deduct';
@@ -147,6 +158,28 @@ function api_getScoreHistory_(token, filters) {
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }
+}
+
+/**
+ * ตรวจสอบว่า Sheet ScoreLogs มีคอลัมน์ EventTime แล้วหรือยัง
+ * ถ้ายังไม่มี → เพิ่มคอลัมน์ถัดจาก EducationPhase (กันข้อมูลเดิมเลื่อน) + เขียนหัวคอลัมน์
+ */
+function ensureScoreLogEventTimeColumn_() {
+  const sheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (headers.indexOf('EventTime') !== -1) return;
+  const colPhase = headers.indexOf('EducationPhase'); // 0-based index
+  let newColPos; // 1-based position ของคอลัมน์ใหม่ (ถัดจาก EducationPhase)
+  if (colPhase !== -1) {
+    sheet.insertColumnAfter(colPhase + 1);
+    newColPos = colPhase + 2;
+  } else {
+    sheet.insertColumnAfter(headers.length);
+    newColPos = headers.length + 1;
+  }
+  sheet.getRange(1, newColPos).setValue('EventTime')
+    .setFontWeight('bold').setBackground('#152A52').setFontColor('#FFFFFF');
+  Logger.log('ensureScoreLogEventTimeColumn_: เพิ่มคอลัมน์ EventTime แล้ว');
 }
 
 // ============================================

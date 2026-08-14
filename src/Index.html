@@ -314,6 +314,12 @@
                   <textarea class="form-control" id="scoreReasonText" rows="2"
                     placeholder="ระบุรายละเอียดเหตุผล"></textarea>
                 </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold">วัน/เวลาที่เกิดเหตุ
+                    <span class="text-secondary" style="font-weight:400;font-size:.78rem">(ไม่บังคับ — ไม่กรอกจะใช้เวลาบันทึก)</span>
+                  </label>
+                  <input type="datetime-local" class="form-control" id="scoreEventTime">
+                </div>
                 <button class="btn btn-navy px-4" onclick="submitScore()"><i class="bi bi-save2 me-1"></i>
                   บันทึกรายการ</button>
               </div>

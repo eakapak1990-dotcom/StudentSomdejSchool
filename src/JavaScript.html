@@ -1363,6 +1363,7 @@
     }
     const amount = parseInt(document.getElementById("scoreAmount").value) || 0;
     const reason = document.getElementById("scoreReasonText").value.trim();
+    const eventTime = document.getElementById("scoreEventTime").value;
     if (amount <= 0) {
       Swal.fire({ icon: "warning", title: "กรุณาระบุจำนวนคะแนนให้ถูกต้อง" });
       return;
@@ -1407,6 +1408,7 @@
 
           document.getElementById("scoreReasonText").value = "";
           document.getElementById("scoreReasonPreset").value = "";
+          document.getElementById("scoreEventTime").value = "";
           clearScoreStudent();
           loadScoreHistory();
         })
@@ -1422,6 +1424,7 @@
           type: scoreType,
           amount: amount,
           reason: reason,
+          eventTime: eventTime || "",
         });
     });
   }
@@ -1445,7 +1448,11 @@
             <td class="fw-bold" style="color:${l.Type === "add" ? "var(--good)" : "var(--bad)"}">${l.Type === "add" ? "+" : "-"}${l.Amount}</td>
             <td class="text-secondary small">${l.Reason}</td>
             <td class="text-secondary small">${l.RecordedByName}</td>
-            <td class="text-secondary small">${toThaiDate(l.Timestamp, true)}</td>
+            <td class="text-secondary small">${
+              l.EventTime
+                ? `<div>เกิดเหตุ: ${toThaiDate(l.EventTime, true)}</div><div style="font-size:.72rem;opacity:.85">บันทึก: ${toThaiDate(l.Timestamp, true)}</div>`
+                : toThaiDate(l.Timestamp, true)
+            }</td>
           </tr>`,
           )
           .join("");

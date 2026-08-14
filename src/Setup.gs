@@ -27,7 +27,7 @@ function setupAllSheets() {
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.SCORE_LOGS, [
     'LogID', 'StudentID', 'Type', 'Amount', 'Reason',
-    'RecordedBy', 'RecordedByName', 'Timestamp', 'EducationPhase'
+    'RecordedBy', 'RecordedByName', 'Timestamp', 'EducationPhase', 'EventTime'
   ]);
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.LEAVE_REQUESTS, [

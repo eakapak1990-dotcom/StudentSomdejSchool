@@ -21,7 +21,8 @@ function api_getUsers_(token) {
 
     return { success: true, users: users };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -69,7 +70,8 @@ function api_addUser_(token, payload) {
 
     return { success: true, userId: newUserId };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -98,7 +100,8 @@ function api_toggleUserActive_(token, userId, active) {
     }
     return { success: false, message: 'ไม่พบผู้ใช้งานนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -123,17 +126,20 @@ function api_changeOwnPassword_(token, oldPassword, newPassword) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][colId] === session.userId) {
         const currentHash = data[i][colHash];
-        if (hashPassword_(oldPassword) !== currentHash) {
+        if (!verifyPassword_(oldPassword, String(currentHash || ''))) {
           return { success: false, message: 'รหัสผ่านเดิมไม่ถูกต้อง' };
         }
         sheet.getRange(i + 1, colHash + 1).setValue(hashPassword_(newPassword));
+        // เพิกถอน session ทั้งหมด (รวม session ปัจจุบัน) — ต้องล็อกอินใหม่ด้วยรหัสใหม่
+        bumpSessionVersion_(session.userId);
         logAudit_(session, 'CHANGE_PASSWORD', CONFIG.SHEET_NAMES.USERS, session.userId, '', 'เปลี่ยนรหัสผ่านตนเอง');
         return { success: true };
       }
     }
     return { success: false, message: 'ไม่พบบัญชีผู้ใช้งาน' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -157,13 +163,16 @@ function api_resetUserPassword_(token, userId, newPassword) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][colId] === userId) {
         sheet.getRange(i + 1, colHash + 1).setValue(hashPassword_(newPassword));
+        // เพิกถอน session เก่าทั้งหมดของผู้ถูกเปลี่ยนรหัส
+        bumpSessionVersion_(userId);
         logAudit_(session, 'RESET_PASSWORD', CONFIG.SHEET_NAMES.USERS, userId, '', 'รีเซ็ตรหัสผ่านโดยผู้ดูแลระบบ');
         return { success: true };
       }
     }
     return { success: false, message: 'ไม่พบผู้ใช้งานนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

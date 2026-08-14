@@ -14,15 +14,22 @@ function api_addScore_(token, payload) {
 
     const studentId = payload.studentId;
     const type = payload.type; // 'add' หรือ 'deduct'
-    const amount = Math.abs(Number(payload.amount) || 0);
+    const amountRaw = Number(payload.amount);
     const reason = (payload.reason || '').trim();
 
     if (!studentId) return { success: false, message: 'กรุณาเลือกนักเรียน' };
     if (!['add', 'deduct'].includes(type)) return { success: false, message: 'ประเภทรายการไม่ถูกต้อง' };
-    if (amount <= 0) return { success: false, message: 'กรุณาระบุจำนวนคะแนนให้ถูกต้อง' };
+    if (!Number.isInteger(amountRaw) || amountRaw <= 0 || amountRaw > 50) {
+      return { success: false, message: 'จำนวนคะแนนต้องเป็นจำนวนเต็ม 1–50' };
+    }
+    const amount = amountRaw;
     if (!reason) return { success: false, message: 'กรุณาระบุเหตุผล' };
 
-    const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
+    // LockService: กัน lost update เมื่อบันทึกคะแนนพร้อมกัน (อ่านคะแนนเดิม → คำนวณ → เขียน)
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
     const colId = headers.indexOf('StudentID');
@@ -42,83 +49,90 @@ function api_addScore_(token, payload) {
         break;
       }
     }
-    if (rowIndex === -1) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
+      if (rowIndex === -1) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
 
-    const newScore = type === 'add' ? oldScore + amount : oldScore - amount;
+      const newScore = type === 'add' ? oldScore + amount : oldScore - amount;
+      if (newScore < 0) {
+        return { success: false, message: 'คะแนนคงเหลือไม่พอสำหรับการหัก (คงเหลือ ' + oldScore + ' คะแนน)' };
+      }
 
-    // อัปเดตคะแนนใน Sheet Students
-    sheet.getRange(rowIndex + 1, colScore + 1).setValue(newScore);
-    sheet.getRange(rowIndex + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+        // อัปเดตคะแนนใน Sheet Students
+      sheet.getRange(rowIndex + 1, colScore + 1).setValue(newScore);
+      sheet.getRange(rowIndex + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
 
-    // วัน/เวลาที่เกิดเหตุ (ไม่บังคับ) — ใช้ย้อนรอยเหตุการณ์ เช่น เหตุเกิดก่อนวันที่บันทึก
-    const eventTime = String(payload.eventTime || '').trim();
-    if (eventTime && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(eventTime)) {
-      return { success: false, message: 'รูปแบบวัน/เวลาที่เกิดเหตุไม่ถูกต้อง' };
-    }
+      // วัน/เวลาที่เกิดเหตุ (ไม่บังคับ) — ใช้ย้อนรอยเหตุการณ์ เช่น เหตุเกิดก่อนวันที่บันทึก
+      const eventTime = String(payload.eventTime || '').trim();
+      if (eventTime && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(eventTime)) {
+        return { success: false, message: 'รูปแบบวัน/เวลาที่เกิดเหตุไม่ถูกต้อง' };
+      }
 
-    // บันทึกลง ScoreLogs
-    const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
-    ensureScoreLogEventTimeColumn_();
-    const logId = Utilities.getUuid();
-    const recordSequence = getNextRecordSequence_('score');
-    logSheet.appendRow([
-      logId, studentId, type, amount, reason,
-      session.userId, session.fullName, new Date(), phase, eventTime
-    ]);
-    // กัน Google Sheets แปลงวัน/เวลาที่เกิดเหตุเป็นวันที่อัตโนมัติ — เก็บเป็นข้อความ
-    const logRow = logSheet.getLastRow();
-    logSheet.getRange(logRow, 10).setNumberFormat('@');
-    logSheet.getRange(logRow, 10).setValue(eventTime);
+      // บันทึกลง ScoreLogs
+      const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
+      ensureScoreLogEventTimeColumn_();
+      const logId = Utilities.getUuid();
+      const recordSequence = getNextRecordSequence_('score');
+      logSheet.appendRow([
+        logId, studentId, type, amount, reason,
+        session.userId, session.fullName, new Date(), phase, eventTime
+      ]);
+      // กัน Google Sheets แปลงวัน/เวลาที่เกิดเหตุเป็นวันที่อัตโนมัติ — เก็บเป็นข้อความ
+      const logRow = logSheet.getLastRow();
+      logSheet.getRange(logRow, 10).setNumberFormat('@');
+      logSheet.getRange(logRow, 10).setValue(eventTime);
 
-    // เพิ่ม Timeline event
-    const eventType = type === 'add' ? 'add' : 'deduct';
-    const eventTitle = (type === 'add' ? 'ได้รับเพิ่มคะแนน ' : 'ถูกหักคะแนน ') + amount + ' คะแนน: ' + reason;
-    addTimelineEvent_(studentId, eventType, eventTitle, 'บันทึกโดย ' + session.fullName, session.fullName);
+      // เพิ่ม Timeline event
+      const eventType = type === 'add' ? 'add' : 'deduct';
+      const eventTitle = (type === 'add' ? 'ได้รับเพิ่มคะแนน ' : 'ถูกหักคะแนน ') + amount + ' คะแนน: ' + reason;
+      addTimelineEvent_(studentId, eventType, eventTitle, 'บันทึกโดย ' + session.fullName, session.fullName);
 
-    logAudit_(session, 'SCORE_' + type.toUpperCase(), CONFIG.SHEET_NAMES.STUDENTS, studentId,
-      'คะแนนเดิม: ' + oldScore, 'คะแนนใหม่: ' + newScore + ' (' + reason + ')');
+      logAudit_(session, 'SCORE_' + type.toUpperCase(), CONFIG.SHEET_NAMES.STUDENTS, studentId,
+        'คะแนนเดิม: ' + oldScore, 'คะแนนใหม่: ' + newScore + ' (' + reason + ')');
 
-    // แจ้งเตือนผู้ปกครองผ่าน LINE (ถ้าเชื่อมแล้ว) — ไม่กระทบการบันทึกหลักถ้า LINE error
-    try {
-      notifyScoreEvent_(studentId, type, amount, oldScore, newScore, reason, session.fullName, new Date());
-    } catch (lineErr) {
-      Logger.log('ส่ง LINE แจ้งเตือนคะแนนไม่สำเร็จ: ' + lineErr.message);
-    }
+      // แจ้งเตือนผู้ปกครองผ่าน LINE (ถ้าเชื่อมแล้ว) — ไม่กระทบการบันทึกหลักถ้า LINE error
+      try {
+        notifyScoreEvent_(studentId, type, amount, oldScore, newScore, reason, session.fullName, new Date());
+      } catch (lineErr) {
+        Logger.log('ส่ง LINE แจ้งเตือนคะแนนไม่สำเร็จ: ' + lineErr.message);
+      }
 
-    // ตรวจสอบว่าข้ามเกณฑ์แจ้งเตือนหรือไม่ (เฉพาะกรณีลดคะแนน)
-    let alertTriggered = null;
-    if (type === 'deduct') {
-      for (let t = 0; t < SCORE_THRESHOLDS.length; t++) {
-        const threshold = SCORE_THRESHOLDS[t];
-        if (oldScore > threshold && newScore <= threshold) {
-          alertTriggered = threshold;
-          addTimelineEvent_(
-            studentId, 'alert',
-            'แจ้งเตือน: คะแนนลดถึงเกณฑ์ ' + threshold + ' คะแนน — ต้องเชิญผู้ปกครอง',
-            'คะแนนคงเหลือ ' + newScore + ' คะแนน (รอบ' + phase + ')',
-            'ระบบอัตโนมัติ'
-          );
-          // สร้างร่างหนังสือเชิญผู้ปกครองอัตโนมัติทันที (สถานะ draft รอเจ้าหน้าที่ยืนยัน)
-          try {
-            createAutoDraftLetter_(studentId, threshold, newScore);
-          } catch (letterErr) {
-            // ไม่ให้การสร้างหนังสือ error กระทบการบันทึกคะแนนหลัก
-            Logger.log('สร้างร่างหนังสือเชิญอัตโนมัติไม่สำเร็จ: ' + letterErr.message);
+      // ตรวจสอบว่าข้ามเกณฑ์แจ้งเตือนหรือไม่ (เฉพาะกรณีลดคะแนน)
+      let alertTriggered = null;
+      if (type === 'deduct') {
+        for (let t = 0; t < SCORE_THRESHOLDS.length; t++) {
+          const threshold = SCORE_THRESHOLDS[t];
+          if (oldScore > threshold && newScore <= threshold) {
+            alertTriggered = threshold;
+            addTimelineEvent_(
+              studentId, 'alert',
+              'แจ้งเตือน: คะแนนลดถึงเกณฑ์ ' + threshold + ' คะแนน — ต้องเชิญผู้ปกครอง',
+              'คะแนนคงเหลือ ' + newScore + ' คะแนน (รอบ' + phase + ')',
+              'ระบบอัตโนมัติ'
+            );
+            // สร้างร่างหนังสือเชิญผู้ปกครองอัตโนมัติทันที (สถานะ draft รอเจ้าหน้าที่ยืนยัน)
+            try {
+              createAutoDraftLetter_(studentId, threshold, newScore);
+            } catch (letterErr) {
+              // ไม่ให้การสร้างหนังสือ error กระทบการบันทึกคะแนนหลัก
+              Logger.log('สร้างร่างหนังสือเชิญอัตโนมัติไม่สำเร็จ: ' + letterErr.message);
+            }
+            break;
           }
-          break;
         }
       }
-    }
 
-    return {
-      success: true,
-      newScore: newScore,
-      studentName: studentName,
-      alertTriggered: alertTriggered,
-      recordSequence: recordSequence
-    };
+      return {
+        success: true,
+        newScore: newScore,
+        studentName: studentName,
+        alertTriggered: alertTriggered,
+        recordSequence: recordSequence
+      };
+    } finally {
+      lock.releaseLock();
+    }
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('api_addScore_ error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -156,7 +170,8 @@ function api_getScoreHistory_(token, filters) {
 
     return { success: true, logs: logs };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

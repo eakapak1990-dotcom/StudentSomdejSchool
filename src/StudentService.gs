@@ -2,6 +2,14 @@
 // STUDENTSERVICE.GS - จัดการข้อมูลนักเรียน + ผู้ปกครอง
 // ============================================
 
+/** ปกปิดเลขบัตรประชาชน — แสดงเฉพาะ 3 หลักแรก + 4 หลักท้าย (เช่น 116-XXXXX-XXXX) */
+function maskCitizenId_(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (/^\d{13}$/.test(s)) return s.substr(0, 3) + '-XXXXX-' + s.substr(9, 4);
+  if (s.length >= 8) return s.substr(0, 3) + '-XXXXX-' + s.substr(s.length - 4);
+  return s ? '***' : '';
+}
+
 function api_getStudents_(token, filters) {
   try {
     const session = validateSession_(token);
@@ -25,9 +33,13 @@ function api_getStudents_(token, filters) {
 
     students.sort((a, b) => (String(a.Grade) + String(a.Room) + String(a.No)) > (String(b.Grade) + String(b.Room) + String(b.No)) ? 1 : -1);
 
+    // PDPA: ไม่ส่งเลขบัตรประชาชนเต็มไปฝั่ง client — mask ให้ทุก role
+    students = students.map(s => { s.CitizenID = maskCitizenId_(s.CitizenID); return s; });
+
     return { success: true, students: students.slice(0, 200), total: students.length };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('api_getStudents_ error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -39,13 +51,19 @@ function api_getStudentDetail_(token, studentId) {
     const student = findStudentById_(studentId);
     if (!student) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
 
+    // PDPA: เลขบัตรเต็มส่งให้เฉพาะ role ที่มีสิทธิ์แก้ไขข้อมูล (editDelete) — จำเป็นสำหรับฟอร์มแก้ไข
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+      student.CitizenID = maskCitizenId_(student.CitizenID);
+    }
+
     const parent = findParentByStudentId_(studentId);
     const timeline = getStudentTimeline_(studentId);
     const scoreSummary = getStudentScoreSummary_(studentId, student.CurrentScore);
 
     return { success: true, student, parent, timeline, scoreSummary };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('api_getStudentDetail_ error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -116,7 +134,8 @@ function api_addStudent_(token, payload) {
 
     return { success: true, studentId: newId, recordSequence: recordSequence };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -232,7 +251,8 @@ function api_importStudents_(token, rows) {
       errors: errors.slice(0, 50)
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -331,7 +351,8 @@ function api_updateStudent_(token, studentId, payload) {
 
     return { success: true };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -363,7 +384,8 @@ function api_deleteStudent_(token, studentId) {
     }
     return { success: false, message: 'ไม่พบนักเรียน' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -419,7 +441,8 @@ function api_getDashboardSummary_(token) {
       recentTimeline: recentEvents
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -729,7 +752,8 @@ function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt
 
     return { success: true, photoFileId: photoFile.getId(), photoUrl: 'https://drive.google.com/thumbnail?id=' + photoFile.getId() + '&sz=w400' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

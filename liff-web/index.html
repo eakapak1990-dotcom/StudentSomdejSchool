@@ -656,7 +656,7 @@
         </div>
         <input class="form-control mb-2" id="bind_studentId" placeholder="รหัสนักเรียน เช่น 26165">
         <input class="form-control mb-2" id="bind_phone" placeholder="เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)">
-        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 4–6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
+        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
         <button class="btn btn-navy w-100" onclick="doBind()"><i class="bi bi-link-45deg me-1"></i> เชื่อมต่อ</button>
       </div>
 
@@ -670,7 +670,7 @@
           <option value="">-- เลือกนักเรียน --</option>
         </select>
         <label class="form-label small fw-semibold">รหัส PIN ปัจจุบัน</label>
-        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 4–6 หลัก">
+        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 6 หลัก">
         <div class="row g-2 mb-3">
           <div class="col-6">
             <button class="btn btn-navy w-100" onclick="doChangePin()"><i class="bi bi-key me-1"></i> เปลี่ยน PIN</button>
@@ -753,6 +753,16 @@
       return document.getElementById(id);
     }
 
+    // กัน XSS: escape HTML สำหรับข้อมูลที่มาจากระบบ/ผู้ใช้ก่อน render
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     function showStatus(text, isError) {
       var el = $("liffStatus");
       el.className = "liff-status" + (isError ? " error" : "");
@@ -777,10 +787,19 @@
 
     // ===== เรียก backend (GAS doPost) ผ่าน HTTP — รองรับ CORS (text/plain ไม่มี preflight) =====
     function api(action, params) {
+      // ส่ง LINE ID Token (JWT) ให้ฝั่ง server ตรวจยืนยันตัวตน — กันการปลอม lineUserId
+      var idToken = "";
+      try {
+        if (liff && liff.getIDToken) idToken = liff.getIDToken() || "";
+      } catch (e) {
+        idToken = "";
+      }
+      var payload = Object.assign({ action: action }, params || {});
+      if (idToken) payload.idToken = idToken;
       return fetch(GAS_API_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(Object.assign({ action: action }, params || {}))
+        body: JSON.stringify(payload)
       })
         .then(function (r) {
           return r.json().catch(function () {
@@ -928,8 +947,8 @@
         Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
         return;
       }
-      if (!/^\d{4,6}$/.test(pin)) {
-        Swal.fire({ icon: "warning", title: "รหัส PIN ต้องเป็นตัวเลข 4–6 หลัก" });
+      if (!/^\d{6}$/.test(pin)) {
+        Swal.fire({ icon: "warning", title: "รหัส PIN ต้องเป็นตัวเลข 6 หลัก" });
         return;
       }
       Swal.fire({
@@ -1004,8 +1023,8 @@
                   '<div class="h-icn" style="background:' + (isDeduct ? "#c2483a" : "#1f8a5b") + '">' +
                   '<i class="bi ' + (isDeduct ? "bi-dash" : "bi-plus") + '"></i></div>' +
                   '<div style="flex:1">' +
-                  '<div class="h-main">' + (isDeduct ? "-" : "+") + h.amount + " คะแนน · " + (h.reason || "-") + "</div>" +
-                  '<div class="h-sub">' + h.timestamp + " · บันทึกโดย " + h.recordedByName + "</div>" +
+                  '<div class="h-main">' + (isDeduct ? "-" : "+") + h.amount + " คะแนน · " + escapeHtml(h.reason || "-") + "</div>" +
+                  '<div class="h-sub">' + h.timestamp + " · บันทึกโดย " + escapeHtml(h.recordedByName) + "</div>" +
                   "</div></div>"
                 );
               })
@@ -1040,8 +1059,8 @@
                       : '<span class="badge-status badge-other">' + (l.statusText || l.status) + "</span>";
                 return (
                   '<div class="letter-item">' +
-                  '<div class="l-no">📄 เลขที่ ' + l.letterNo + "</div>" +
-                  '<div class="l-meta">' + badge + " · " + l.createdAt + " · โดย " + l.createdBy + "</div>" +
+                  '<div class="l-no">📄 เลขที่ ' + escapeHtml(l.letterNo) + "</div>" +
+                  '<div class="l-meta">' + badge + " · " + l.createdAt + " · โดย " + escapeHtml(l.createdBy) + "</div>" +
                   "</div>"
                 );
               })
@@ -1128,8 +1147,8 @@
             return (
               '<div class="news-item">' +
               '<div class="n-type">' + (NEWS_TYPE_LABEL[a.type] || "📢 ประกาศ") + "</div>" +
-              '<div class="n-title">' + a.title + "</div>" +
-              '<div class="n-msg">' + a.message + "</div>" +
+              '<div class="n-title">' + escapeHtml(a.title) + "</div>" +
+              '<div class="n-msg">' + escapeHtml(a.message) + "</div>" +
               '<div class="n-time">' + a.createdAt + "</div>" +
               "</div>"
             );
@@ -1163,8 +1182,8 @@
               '<div class="notif-item">' +
               '<div class="n-icn"><i class="bi ' + (ICONS[ev.type] || "bi-bell") + '"></i></div>' +
               '<div style="flex:1">' +
-              '<div class="n-main">' + ev.title + "</div>" +
-              (ev.description ? '<div class="n-desc">' + ev.description + "</div>" : "") +
+              '<div class="n-main">' + escapeHtml(ev.title) + "</div>" +
+              (ev.description ? '<div class="n-desc">' + escapeHtml(ev.description) + "</div>" : "") +
               '<div class="n-time"><i class="bi bi-clock me-1"></i>' + ev.timestamp + "</div>" +
               "</div></div>"
             );
@@ -1180,7 +1199,7 @@
       var newPin = $("pin_new").value.trim();
       if (!studentId) return Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
       if (!oldPin || !newPin) return Swal.fire({ icon: "warning", title: "กรุณากรอก PIN เดิมและ PIN ใหม่" });
-      if (!/^\d{4,6}$/.test(newPin)) return Swal.fire({ icon: "warning", title: "PIN ใหม่ต้องเป็นตัวเลข 4–6 หลัก" });
+      if (!/^\d{6}$/.test(newPin)) return Swal.fire({ icon: "warning", title: "PIN ใหม่ต้องเป็นตัวเลข 6 หลัก" });
       api("liffChangePin", { lineUserId: lineUserId, studentId: studentId, oldPin: oldPin, newPin: newPin }).then(function (res) {
         if (!res.success) return Swal.fire({ icon: "error", title: "เปลี่ยน PIN ไม่สำเร็จ", text: res.message });
         Swal.fire({ icon: "success", title: "เปลี่ยน PIN เรียบร้อย", timer: 1800, showConfirmButton: false });

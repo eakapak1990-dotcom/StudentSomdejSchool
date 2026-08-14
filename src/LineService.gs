@@ -366,13 +366,19 @@ function api_getLineSettings_(token) {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
     const bindings = getAllLineBindings_();
+    // Channel Access Token เป็นความลับ — ส่งเต็มเฉพาะ role manageSystem, role อื่นเห็นค่า mask
+    const canManage = !!CONFIG.PERMISSIONS[session.role] && !!CONFIG.PERMISSIONS[session.role].manageSystem;
+    const rawToken = getConfigValue_('LINE_CHANNEL_ACCESS_TOKEN') || '';
+    const rawSecret = getConfigValue_('LINE_CHANNEL_SECRET') || '';
     return {
       success: true,
       settings: {
-        channelAccessToken: getConfigValue_('LINE_CHANNEL_ACCESS_TOKEN') || '',
+        channelAccessToken: canManage ? rawToken : (rawToken ? rawToken.substr(0, 6) + '••••••••' : ''),
+        channelSecret: canManage ? rawSecret : (rawSecret ? '••••••••' : ''),
         liffId: getConfigValue_('LINE_LIFF_ID') || '',
         notifyScoreAdd: getConfigValue_('LINE_NOTIFY_SCORE_ADD') === 'true',
-        contactChannel: getConfigValue_('LINE_CONTACT_CHANNEL') || ''
+        contactChannel: getConfigValue_('LINE_CONTACT_CHANNEL') || '',
+        canManage: canManage
       },
       stats: {
         hasToken: !!getConfigValue_('LINE_CHANNEL_ACCESS_TOKEN'),
@@ -383,7 +389,8 @@ function api_getLineSettings_(token) {
       }
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -391,16 +398,18 @@ function api_saveLineSettings_(token, settings) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
-      return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการตั้งค่า LINE' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการตั้งค่า LINE — เฉพาะผู้ดูแลระบบ' };
     }
     setConfigValue_('LINE_CHANNEL_ACCESS_TOKEN', String(settings.channelAccessToken || '').trim(), 'LINE OA Channel Access Token (Messaging API)');
+    setConfigValue_('LINE_CHANNEL_SECRET', String(settings.channelSecret || '').trim(), 'LINE Login Channel Secret (สำหรับตรวจสอบ ID Token)');
     setConfigValue_('LINE_LIFF_ID', String(settings.liffId || '').trim(), 'LINE LIFF App ID');
     setConfigValue_('LINE_NOTIFY_SCORE_ADD', settings.notifyScoreAdd ? 'true' : 'false', 'แจ้งเตือนเมื่อนักเรียนได้คะแนนเพิ่ม (true/false)');
     setConfigValue_('LINE_CONTACT_CHANNEL', String(settings.contactChannel || '').trim(), 'ช่องทางติดต่อกลับโรงเรียน');
     return { success: true };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -421,7 +430,8 @@ function api_addLineBinding_(token, studentId, lineUserId, parentDisplayName) {
     setStudentLineLinked_(st.StudentID, true);
     return { success: true };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -447,7 +457,8 @@ function api_removeLineBinding_(token, bindingId) {
     }
     return { success: false, message: 'ไม่พบรายการเชื่อมต่อนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -474,13 +485,69 @@ function api_testLineNotification_(token) {
     if (r.sent) return { success: true, message: 'ส่งข้อความทดสอบไปยัง ' + active[0].ParentDisplayName + ' เรียบร้อยแล้ว' };
     return { success: false, message: 'ส่งไม่สำเร็จ: ' + (r.reason || ('HTTP ' + r.code + ' — ' + (r.body || ''))) };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
 // ============================================================
 // 5. LIFF APIs (ผู้ปกครองเรียกจากหน้า LIFF — ตรวจความสัมพันธ์ก่อนเสมอ)
 // ============================================================
+
+/** base64url → bytes (unsigned) */
+function base64UrlDecodeBytes_(s) {
+  const b64 = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  const pad = (4 - (b64.length % 4)) % 4;
+  return Utilities.base64Decode(b64 + '===='.substr(0, pad));
+}
+
+/** base64url → ข้อความ UTF-8 */
+function base64UrlDecodeText_(s) {
+  const b64 = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  const pad = (4 - (b64.length % 4)) % 4;
+  return Utilities.newBlob(Utilities.base64Decode(b64 + '===='.substr(0, pad))).getDataAsString();
+}
+
+/**
+ * ตรวจสอบ LINE ID Token (JWT) ด้วย Channel Secret — HS256
+ * คืน { ok:true, lineUserId, name } หรือ { ok:false, message }
+ * ต้องตั้งค่า LINE_CHANNEL_SECRET ในหน้า "การแจ้งเตือน LINE" ก่อน ระบบถึงจะบังคับใช้
+ */
+function verifyLineIdToken_(idToken) {
+  try {
+    const secret = String(getConfigValue_('LINE_CHANNEL_SECRET') || '').trim();
+    if (!secret) return { ok: false, message: 'ยังไม่ได้ตั้งค่า LINE Channel Secret' };
+    const parts = String(idToken || '').split('.');
+    if (parts.length !== 3) return { ok: false, message: 'รูปแบบ ID Token ไม่ถูกต้อง' };
+    const header = JSON.parse(base64UrlDecodeText_(parts[0]));
+    const payload = JSON.parse(base64UrlDecodeText_(parts[1]));
+    if (header.alg !== 'HS256') return { ok: false, message: 'อัลกอริทึมลายเซ็นไม่รองรับ' };
+
+    // ตรวจสอบลายเซ็น: HMAC-SHA256('header.payload', secret)
+    const expected = Utilities.computeHmacSha256Signature(parts[0] + '.' + parts[1], secret).map(b => b & 255);
+    const actual = Array.prototype.slice.call(base64UrlDecodeBytes_(parts[2])).map(b => b & 255);
+    if (expected.length !== actual.length) return { ok: false, message: 'ลายเซ็น ID Token ไม่ถูกต้อง' };
+    for (let i = 0; i < expected.length; i++) {
+      if (expected[i] !== actual[i]) return { ok: false, message: 'ลายเซ็น ID Token ไม่ถูกต้อง' };
+    }
+
+    // อายุ + ผู้ให้ออก + ผู้รับ (channel/LIFF)
+    if (!payload.exp || Date.now() / 1000 > Number(payload.exp)) {
+      return { ok: false, message: 'ID Token หมดอายุแล้ว' };
+    }
+    if (payload.iss && payload.iss !== 'https://access.line.me') {
+      return { ok: false, message: 'ผู้ออก ID Token ไม่ถูกต้อง' };
+    }
+    if (payload.aud && payload.aud !== String(getConfigValue_('LINE_LIFF_ID') || '').trim()) {
+      return { ok: false, message: 'ID Token ไม่ตรงกับ LIFF app นี้' };
+    }
+    if (!payload.sub) return { ok: false, message: 'ID Token ไม่มี sub' };
+    return { ok: true, lineUserId: payload.sub, name: payload.name || '' };
+  } catch (e) {
+    Logger.log('verifyLineIdToken_ error: ' + e.message);
+    return { ok: false, message: 'ID Token ไม่ถูกต้อง' };
+  }
+}
 
 /** ตรวจสอบว่า LINE user มีสิทธิ์เข้าถึงนักเรียนคนนี้ (ต้องผูกบัญชีแล้ว) */
 function verifyLiffBinding_(lineUserId, studentId) {
@@ -508,8 +575,8 @@ function apiLiffBind(lineUserId, studentId, parentPhone, pin) {
       return { success: false, message: 'กรุณากรอกข้อมูลให้ครบ (รหัสนักเรียน, เบอร์โทร, รหัส PIN)' };
     }
     pin = String(pin).trim();
-    if (!/^\d{4,6}$/.test(pin)) {
-      return { success: false, message: 'รหัส PIN ต้องเป็นตัวเลข 4–6 หลัก' };
+    if (!/^\d{6}$/.test(pin)) {
+      return { success: false, message: 'รหัส PIN ต้องเป็นตัวเลข 6 หลัก' };
     }
     const st = findStudentById_(String(studentId).trim());
     if (!st) return { success: false, message: 'ไม่พบรหัสนักเรียนนี้ในระบบ' };
@@ -522,16 +589,24 @@ function apiLiffBind(lineUserId, studentId, parentPhone, pin) {
     if (inputPhone !== storedPhone) {
       return { success: false, message: 'เบอร์โทรศัพท์ไม่ตรงกับข้อมูลผู้ปกครองของนักเรียนคนนี้' };
     }
-    const existing = getLineBindingsForStudent_(st.StudentID).filter(function (b) { return b.LineUserID === lineUserId; });
-    if (existing.length) {
-      return { success: true, alreadyBound: true, studentId: st.StudentID, parentName: parent.ParentName };
+    // LockService: กันผูกซ้ำเมื่อกดเชื่อมต่อพร้อมกัน (ตรวจ-แล้ว-เขียน)
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const existing = getLineBindingsForStudent_(st.StudentID).filter(function (b) { return b.LineUserID === lineUserId; });
+      if (existing.length) {
+        return { success: true, alreadyBound: true, studentId: st.StudentID, parentName: parent.ParentName };
+      }
+      const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+      sheet.appendRow([Utilities.getUuid(), st.StudentID, lineUserId, parent.ParentName || 'ผู้ปกครอง', new Date(), true, hashPassword_(pin)]);
+      setStudentLineLinked_(st.StudentID, true);
+      return { success: true, studentId: st.StudentID, parentName: parent.ParentName };
+    } finally {
+      lock.releaseLock();
     }
-    const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-    sheet.appendRow([Utilities.getUuid(), st.StudentID, lineUserId, parent.ParentName || 'ผู้ปกครอง', new Date(), true, hashPassword_(pin)]);
-    setStudentLineLinked_(st.StudentID, true);
-    return { success: true, studentId: st.StudentID, parentName: parent.ParentName };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -549,7 +624,8 @@ function apiLiffUnbind(lineUserId, studentId, pin) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][colLine] === lineUserId && data[i][colId] === String(studentId).trim() && data[i][colActive] !== false) {
         const pinHash = data[i][colPin];
-        if (!pinHash || hashPassword_(String(pin || '').trim()) !== String(pinHash)) {
+        // รองรับ PIN รุ่นเก่า (4-6 หลัก, hash SHA-256) ด้วย verifyPassword_
+        if (!pinHash || !verifyPassword_(String(pin || '').trim(), String(pinHash))) {
           return { success: false, message: 'รหัส PIN ไม่ถูกต้อง' };
         }
         sheet.getRange(i + 1, colActive + 1).setValue(false);
@@ -561,7 +637,8 @@ function apiLiffUnbind(lineUserId, studentId, pin) {
     }
     return { success: false, message: 'ไม่พบการเชื่อมต่อของนักเรียนคนนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -570,7 +647,7 @@ function apiLiffChangePin(lineUserId, studentId, oldPin, newPin) {
   try {
     oldPin = String(oldPin || '').trim();
     newPin = String(newPin || '').trim();
-    if (!/^\d{4,6}$/.test(newPin)) return { success: false, message: 'รหัส PIN ใหม่ต้องเป็นตัวเลข 4–6 หลัก' };
+    if (!/^\d{6}$/.test(newPin)) return { success: false, message: 'รหัส PIN ใหม่ต้องเป็นตัวเลข 6 หลัก' };
     const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
@@ -581,7 +658,7 @@ function apiLiffChangePin(lineUserId, studentId, oldPin, newPin) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][colLine] === lineUserId && data[i][colId] === String(studentId).trim() && data[i][colActive] !== false) {
         const pinHash = data[i][colPin];
-        if (!pinHash || hashPassword_(oldPin) !== String(pinHash)) {
+        if (!pinHash || !verifyPassword_(oldPin, String(pinHash))) {
           return { success: false, message: 'รหัส PIN เดิมไม่ถูกต้อง' };
         }
         sheet.getRange(i + 1, colPin + 1).setValue(hashPassword_(newPin));
@@ -590,7 +667,8 @@ function apiLiffChangePin(lineUserId, studentId, oldPin, newPin) {
     }
     return { success: false, message: 'ไม่พบการเชื่อมต่อของนักเรียนคนนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -610,7 +688,8 @@ function apiLiffGetMyStudents(lineUserId) {
     });
     return { success: true, students: students };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -653,7 +732,8 @@ function apiLiffGetStudentScore(lineUserId, studentId) {
       })
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -688,7 +768,8 @@ function apiLiffGetNotifications(lineUserId, studentId) {
     });
     return { success: true, events: events };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -727,7 +808,8 @@ function apiLiffSubmitLeave(lineUserId, studentId, reason, leaveDate, outTime, i
       'ผู้ปกครอง (LINE)');
     return { success: true, requestId: requestId };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -851,7 +933,8 @@ function api_getAnnouncements_(token) {
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
     return { success: true, announcements: getAllAnnouncements_() };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -873,7 +956,8 @@ function api_addAnnouncement_(token, title, message, type, sendLine) {
     }
     return { success: true, broadcast: broadcast };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -896,7 +980,8 @@ function api_deleteAnnouncement_(token, announcementId) {
     }
     return { success: false, message: 'ไม่พบประกาศนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -906,7 +991,8 @@ function apiLiffGetAnnouncements(lineUserId) {
     const list = getAllAnnouncements_().filter(function (a) { return a.active; });
     return { success: true, announcements: list.slice(0, 20) };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

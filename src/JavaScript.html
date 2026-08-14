@@ -1,6 +1,7 @@
 <script>
   let currentUser = null;
   let lineSettingsLocked = false; // ล็อกการตั้งค่า LINE หลังบันทึก — แก้ไขต้องยืนยัน username/password
+  let leaveRequestsCache = []; // แคชรายการคำร้อง — กัน XSS จากการฝังชื่อนักเรียนใน onclick
 
   /* ================= THAI DATE UTILITY (พ.ศ. จริง) ================= */
   function toThaiDate(dateInput, withTime) {
@@ -39,6 +40,15 @@
       return Number(p[2]) + " " + (th[Number(p[1])] || p[1]) + " " + (Number(p[0]) + 543);
     }
     return toThaiDate(v, false);
+  }
+  // กัน XSS: escape HTML สำหรับข้อมูลที่มาจากผู้ใช้ก่อน render ผ่าน innerHTML
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   /* ================= SESSION RESTORE ================= */
@@ -930,16 +940,16 @@
     <div class="col-lg-4">
       <div class="card-panel text-center">
         ${renderAvatarHtml(st.PhotoFileID, (st.FirstName || "-")[0] + (st.LastName || "-")[0], "avatar-lg mx-auto mb-3")}
-        <h4 class="mb-0">${st.Prefix || ""}${st.FirstName || ""} ${st.LastName || ""}</h4>
-        <div class="text-secondary small mb-3">${st.StudentID} · ${st.Grade}/${st.Room} เลขที่ ${st.No}</div>
+        <h4 class="mb-0">${escapeHtml(st.Prefix || "")}${escapeHtml(st.FirstName || "")} ${escapeHtml(st.LastName || "")}</h4>
+        <div class="text-secondary small mb-3">${escapeHtml(st.StudentID)} · ${escapeHtml(st.Grade)}/${escapeHtml(st.Room)} เลขที่ ${escapeHtml(st.No)}</div>
         <div class="text-start small">
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เพศ</span><span>${st.Gender || "-"}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เพศ</span><span>${escapeHtml(st.Gender || "-")}</span></div>
           <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">วันเกิด</span><span>${st.DOB ? toThaiDate(st.DOB) : "-"}</span></div>
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เลขบัตร ปชช.</span><span>${st.CitizenID || "-"}</span></div>
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">หมู่เลือด</span><span>${st.BloodType || "-"}</span></div>
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">น้ำหนัก / ส่วนสูง</span><span>${st.Weight || "-"} กก. / ${st.Height || "-"} ซม.</span></div>
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">ศาสนา</span><span>${st.Religion || "-"}</span></div>
-          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เชื้อชาติ / สัญชาติ</span><span>${st.Ethnicity || "-"} / ${st.Nationality || "-"}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เลขบัตร ปชช.</span><span>${escapeHtml(st.CitizenID || "-")}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">หมู่เลือด</span><span>${escapeHtml(st.BloodType || "-")}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">น้ำหนัก / ส่วนสูง</span><span>${escapeHtml(st.Weight || "-")} กก. / ${escapeHtml(st.Height || "-")} ซม.</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">ศาสนา</span><span>${escapeHtml(st.Religion || "-")}</span></div>
+          <div class="d-flex justify-content-between border-bottom py-1"><span class="text-secondary">เชื้อชาติ / สัญชาติ</span><span>${escapeHtml(st.Ethnicity || "-")} / ${escapeHtml(st.Nationality || "-")}</span></div>
           <div class="d-flex justify-content-between py-1"><span class="text-secondary">สถานะ LINE</span><span>${st.LineLinked ? "เชื่อมแล้ว ✅" : "ยังไม่เชื่อม"}</span></div>
         </div>
       </div>
@@ -1364,8 +1374,8 @@
     const amount = parseInt(document.getElementById("scoreAmount").value) || 0;
     const reason = document.getElementById("scoreReasonText").value.trim();
     const eventTime = document.getElementById("scoreEventTime").value;
-    if (amount <= 0) {
-      Swal.fire({ icon: "warning", title: "กรุณาระบุจำนวนคะแนนให้ถูกต้อง" });
+    if (amount <= 0 || amount > 50) {
+      Swal.fire({ icon: "warning", title: "จำนวนคะแนนต้องเป็นจำนวนเต็ม 1–50" });
       return;
     }
     if (!reason) {
@@ -1443,11 +1453,11 @@
           .map(
             (l) => `
           <tr>
-            <td>${l.StudentName}<div class="text-secondary" style="font-size:.72rem">${l.StudentID}</div></td>
+            <td>${escapeHtml(l.StudentName)}<div class="text-secondary" style="font-size:.72rem">${escapeHtml(l.StudentID)}</div></td>
             <td>${l.Type === "add" ? '<span class="badge-soft badge-good">เพิ่มคะแนน</span>' : '<span class="badge-soft badge-bad">ลดคะแนน</span>'}</td>
             <td class="fw-bold" style="color:${l.Type === "add" ? "var(--good)" : "var(--bad)"}">${l.Type === "add" ? "+" : "-"}${l.Amount}</td>
-            <td class="text-secondary small">${l.Reason}</td>
-            <td class="text-secondary small">${l.RecordedByName}</td>
+            <td class="text-secondary small">${escapeHtml(l.Reason)}</td>
+            <td class="text-secondary small">${escapeHtml(l.RecordedByName)}</td>
             <td class="text-secondary small">${
               l.EventTime
                 ? `<div>เกิดเหตุ: ${toThaiDate(l.EventTime, true)}</div><div style="font-size:.72rem;opacity:.85">บันทึก: ${toThaiDate(l.Timestamp, true)}</div>`
@@ -1642,6 +1652,8 @@
           currentUser.permissions &&
           currentUser.permissions.approveLeave;
 
+        leaveRequestsCache = res.requests || []; // ใช้เปิดหน้าต่างบันทึกเวลาจริงโดยไม่ฝังชื่อใน HTML
+
         const rows = res.requests
           .map((r) => {
             const statusBadge =
@@ -1657,7 +1669,7 @@
             <button class="btn btn-sm btn-outline-success me-1" onclick="handleLeaveAction('${r.RequestID}','approved')"><i class="bi bi-check-lg"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="handleLeaveAction('${r.RequestID}','rejected')"><i class="bi bi-x-lg"></i></button>`
                 : r.Status === "approved"
-                  ? `<button class="btn btn-sm btn-outline-navy" onclick="openRecordActualOut('${r.RequestID}','${r.StudentName}')"><i class="bi bi-door-open me-1"></i> เวลาออกจริง</button>`
+                  ? `<button class="btn btn-sm btn-outline-navy" onclick="openRecordActualOut('${r.RequestID}')"><i class="bi bi-door-open me-1"></i> เวลาออกจริง</button>`
                   : '<span class="text-secondary small">—</span>';
 
             const timeCell =
@@ -1668,8 +1680,8 @@
 
             return `
           <tr>
-            <td>${r.StudentName}<div class="text-secondary" style="font-size:.72rem">${r.StudentClass}</div></td>
-            <td class="text-secondary small">${r.Reason}</td>
+            <td>${escapeHtml(r.StudentName)}<div class="text-secondary" style="font-size:.72rem">${escapeHtml(r.StudentClass)}</div></td>
+            <td class="text-secondary small">${escapeHtml(r.Reason)}</td>
             <td class="small">${timeCell}</td>
             <td>${statusBadge}</td>
             <td class="text-end">${actionBtns}</td>
@@ -1688,12 +1700,14 @@
       .apiGetLeaveRequests(getToken(), { status: currentLeaveTab });
   }
 
-  function openRecordActualOut(requestId, studentName) {
+  function openRecordActualOut(requestId) {
+    const rec = (leaveRequestsCache || []).find((x) => x.RequestID === requestId);
+    const studentName = rec ? rec.StudentName : "";
     Swal.fire({
       title: "บันทึกเวลาออกจากโรงเรียน",
       html:
         '<div style="text-align:left">นักเรียน: <b>' +
-        studentName +
+        escapeHtml(studentName) +
         '</b></div><label class="form-label small mt-2 mb-1">เวลาที่ออกจากโรงเรียนจริง <span class="text-danger">*</span></label>' +
         '<input type="time" class="form-control" id="swal_actualOut">' +
         '<label class="form-label small mt-2 mb-1">เวลากลับถึงโรงเรียน (ถ้ามี)</label>' +
@@ -2255,6 +2269,10 @@
             <input class="form-control" id="ls_liffId" value="${s.liffId}" placeholder="เช่น 2001234567-xxxx" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
           <div class="col-md-6">
+            <label class="form-label small fw-semibold">LINE Login Channel Secret <span class="text-secondary" style="font-weight:400;font-size:.78rem">(ใช้ตรวจสอบ ID Token — ใส่แล้วระบบบังคับยืนยันตัวตน)</span></label>
+            <input type="password" class="form-control" id="ls_secret" value="${s.channelSecret}" autocomplete="off" placeholder="Channel Secret จาก LINE Developers" ${lineSettingsLocked ? "disabled" : ""}>
+          </div>
+          <div class="col-md-6">
             <label class="form-label small fw-semibold">ช่องทางติดต่อกลับโรงเรียน (แสดงในข้อความแจ้งเตือน)</label>
             <input class="form-control" id="ls_contact" value="${s.contactChannel}" placeholder="เช่น 086-4563105" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
@@ -2298,7 +2316,7 @@
   }
 
   function applyLineSettingsLock() {
-    ["ls_token", "ls_liffId", "ls_contact", "ls_notifyAdd"].forEach((id) => {
+    ["ls_token", "ls_secret", "ls_liffId", "ls_contact", "ls_notifyAdd"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.disabled = lineSettingsLocked;
     });
@@ -2366,6 +2384,7 @@
   function saveLineSettings() {
     const payload = {
       channelAccessToken: document.getElementById("ls_token").value,
+      channelSecret: document.getElementById("ls_secret").value,
       liffId: document.getElementById("ls_liffId").value,
       contactChannel: document.getElementById("ls_contact").value,
       notifyScoreAdd: document.getElementById("ls_notifyAdd").checked,
@@ -2502,9 +2521,9 @@
       .map(
         (a) => `
       <tr>
-        <td>${ANNOUNCEMENT_TYPES[a.type] || "📢"} ${a.title}</td>
-        <td class="small text-secondary">${a.message}</td>
-        <td class="small text-secondary">${a.createdAt}<div style="font-size:.72rem">${a.createdBy}</div></td>
+        <td>${ANNOUNCEMENT_TYPES[a.type] || "📢"} ${escapeHtml(a.title)}</td>
+        <td class="small text-secondary">${escapeHtml(a.message)}</td>
+        <td class="small text-secondary">${a.createdAt}<div style="font-size:.72rem">${escapeHtml(a.createdBy)}</div></td>
         <td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="deleteAnnouncement('${a.announcementId}')"><i class="bi bi-trash3"></i></button></td>
       </tr>`,
       )

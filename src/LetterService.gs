@@ -152,7 +152,8 @@ function api_createLetter_(token, payload) {
       recordSequence: result.recordSequence
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -192,7 +193,8 @@ function api_getLetters_(token, filters) {
 
     return { success: true, letters: letters, draftCount: draftCount, confirmedCount: confirmedCount, totalCount: allRows.length };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -263,7 +265,8 @@ function api_previewLetter_(token, payload) {
 
     return { success: true, pdfUrl: pdfFile.getUrl(), pdfFileId: pdfFile.getId() };
   } catch (err) {
-    return { success: false, message: 'ไม่สามารถสร้างไฟล์ตัวอย่าง: ' + err.message };
+    Logger.log('api_previewLetter_ error: ' + err.message);
+    return { success: false, message: 'ไม่สามารถสร้างไฟล์ตัวอย่างได้ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -388,7 +391,8 @@ function api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, l
 
     return { success: true, pdfUrl: pdfFile.getUrl(), pdfFileId: pdfFile.getId() };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

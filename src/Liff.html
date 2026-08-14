@@ -636,7 +636,7 @@
         </div>
         <input class="form-control mb-2" id="bind_studentId" placeholder="รหัสนักเรียน เช่น 26165">
         <input class="form-control mb-2" id="bind_phone" placeholder="เบอร์โทรผู้ปกครอง (ตามที่แจ้งโรงเรียน)">
-        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 4–6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
+        <input class="form-control mb-2" id="bind_pin" type="password" maxlength="6" inputmode="numeric" placeholder="ตั้งรหัส PIN 6 หลัก (ใช้ยืนยันการยกเลิก/เปลี่ยน PIN)">
         <button class="btn btn-navy w-100" onclick="doBind()"><i class="bi bi-link-45deg me-1"></i> เชื่อมต่อ</button>
       </div>
 
@@ -650,7 +650,7 @@
           <option value="">-- เลือกนักเรียน --</option>
         </select>
         <label class="form-label small fw-semibold">รหัส PIN ปัจจุบัน</label>
-        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 4–6 หลัก">
+        <input class="form-control mb-2" id="pin_current" type="password" maxlength="6" inputmode="numeric" placeholder="รหัส PIN 6 หลัก">
         <div class="row g-2 mb-3">
           <div class="col-6">
             <button class="btn btn-navy w-100" onclick="doChangePin()"><i class="bi bi-key me-1"></i> เปลี่ยน PIN</button>
@@ -919,8 +919,8 @@
         Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
         return;
       }
-      if (!/^\d{4,6}$/.test(pin)) {
-        Swal.fire({ icon: "warning", title: "รหัส PIN ต้องเป็นตัวเลข 4–6 หลัก" });
+      if (!/^\d{6}$/.test(pin)) {
+        Swal.fire({ icon: "warning", title: "รหัส PIN ต้องเป็นตัวเลข 6 หลัก" });
         return;
       }
       Swal.fire({
@@ -1196,7 +1196,7 @@
       const newPin = $("pin_new").value.trim();
       if (!studentId) return Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
       if (!oldPin || !newPin) return Swal.fire({ icon: "warning", title: "กรุณากรอก PIN เดิมและ PIN ใหม่" });
-      if (!/^\d{4,6}$/.test(newPin)) return Swal.fire({ icon: "warning", title: "PIN ใหม่ต้องเป็นตัวเลข 4–6 หลัก" });
+      if (!/^\d{6}$/.test(newPin)) return Swal.fire({ icon: "warning", title: "PIN ใหม่ต้องเป็นตัวเลข 6 หลัก" });
       google.script.run
         .withSuccessHandler(function (res) {
           if (!res.success) return Swal.fire({ icon: "error", title: "เปลี่ยน PIN ไม่สำเร็จ", text: res.message });

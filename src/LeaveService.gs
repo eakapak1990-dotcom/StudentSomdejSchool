@@ -53,7 +53,8 @@ function api_createLeaveRequest_(token, payload) {
 
     return { success: true, requestId: requestId, recordSequence: recordSequence };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -61,6 +62,9 @@ function api_getLeaveRequests_(token, filters) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].approveLeave) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์ดูรายการคำร้อง' };
+    }
 
     filters = filters || {};
     const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
@@ -103,7 +107,8 @@ function api_getLeaveRequests_(token, filters) {
       rejectedCount: rejectedCount, totalCount: totalCount
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -118,48 +123,56 @@ function api_updateLeaveStatus_(token, requestId, status, approvalReason) {
       return { success: false, message: 'สถานะไม่ถูกต้อง' };
     }
 
-    const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const colId = headers.indexOf('RequestID');
+    // LockService: กัน race condition เมื่อหลายคนอนุมัติ/ไม่อนุมัติพร้อมกัน
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const colId = headers.indexOf('RequestID');
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === requestId) {
-        const rowObj = rowToObject_(headers, data[i]);
-        if (rowObj.Status !== 'pending') {
-          return { success: false, message: 'คำร้องนี้ถูกดำเนินการไปแล้ว' };
-        }
-
-        sheet.getRange(i + 1, headers.indexOf('Status') + 1).setValue(status);
-        sheet.getRange(i + 1, headers.indexOf('ApprovedBy') + 1).setValue(session.userId);
-        sheet.getRange(i + 1, headers.indexOf('ApprovedByName') + 1).setValue(session.fullName);
-        sheet.getRange(i + 1, headers.indexOf('ApprovalReason') + 1).setValue(approvalReason || '');
-        sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
-
-        const studentId = rowObj.StudentID;
-        const statusText = status === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ';
-        addTimelineEvent_(studentId, 'leave',
-          'คำร้องออกนอกโรงเรียนได้รับการ' + statusText,
-          (approvalReason ? 'เหตุผล: ' + approvalReason + ' · ' : '') + 'ดำเนินการโดย ' + session.fullName,
-          session.fullName);
-
-        logAudit_(session, 'UPDATE_STATUS', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, 'pending', status);
-
-        // แจ้งเตือนผู้ปกครองผ่าน LINE เมื่ออนุมัติ — ไม่กระทบงานหลักถ้า LINE error
-        if (status === 'approved') {
-          try {
-            notifyLeaveApprovalEvent_(studentId, rowObj.Reason, rowObj.RequestedDate, rowObj.RequestedOutTime, rowObj.RequestedInTime, session.fullName, new Date());
-          } catch (lineErr) {
-            Logger.log('ส่ง LINE แจ้งเตือนอนุมัติคำร้องไม่สำเร็จ: ' + lineErr.message);
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][colId] === requestId) {
+          const rowObj = rowToObject_(headers, data[i]);
+          if (rowObj.Status !== 'pending') {
+            return { success: false, message: 'คำร้องนี้ถูกดำเนินการไปแล้ว' };
           }
-        }
 
-        return { success: true };
+          sheet.getRange(i + 1, headers.indexOf('Status') + 1).setValue(status);
+          sheet.getRange(i + 1, headers.indexOf('ApprovedBy') + 1).setValue(session.userId);
+          sheet.getRange(i + 1, headers.indexOf('ApprovedByName') + 1).setValue(session.fullName);
+          sheet.getRange(i + 1, headers.indexOf('ApprovalReason') + 1).setValue(approvalReason || '');
+          sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+
+          const studentId = rowObj.StudentID;
+          const statusText = status === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ';
+          addTimelineEvent_(studentId, 'leave',
+            'คำร้องออกนอกโรงเรียนได้รับการ' + statusText,
+            (approvalReason ? 'เหตุผล: ' + approvalReason + ' · ' : '') + 'ดำเนินการโดย ' + session.fullName,
+            session.fullName);
+
+          logAudit_(session, 'UPDATE_STATUS', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, 'pending', status);
+
+          // แจ้งเตือนผู้ปกครองผ่าน LINE เมื่ออนุมัติ — ไม่กระทบงานหลักถ้า LINE error
+          if (status === 'approved') {
+            try {
+              notifyLeaveApprovalEvent_(studentId, rowObj.Reason, rowObj.RequestedDate, rowObj.RequestedOutTime, rowObj.RequestedInTime, session.fullName, new Date());
+            } catch (lineErr) {
+              Logger.log('ส่ง LINE แจ้งเตือนอนุมัติคำร้องไม่สำเร็จ: ' + lineErr.message);
+            }
+          }
+
+          return { success: true };
+        }
       }
+      return { success: false, message: 'ไม่พบคำร้องนี้' };
+    } finally {
+      lock.releaseLock();
     }
-    return { success: false, message: 'ไม่พบคำร้องนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -174,51 +187,59 @@ function api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTi
     if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].approveLeave) {
       return { success: false, message: 'คุณไม่มีสิทธิ์บันทึกเวลาออกจริง' };
     }
-    const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    const colId = headers.indexOf('RequestID');
+    // LockService: กันการบันทึกเวลาจริงพร้อมกันหลายคน
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const colId = headers.indexOf('RequestID');
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === requestId) {
-        const rowObj = rowToObject_(headers, data[i]);
-        if (rowObj.Status !== 'approved') {
-          return { success: false, message: 'บันทึกเวลาออกจริงได้เฉพาะคำร้องที่อนุมัติแล้ว' };
-        }
-        const outTime = String(actualOutTime || '').trim();
-        const inTime = String(actualInTime || '').trim();
-        if (outTime && !/^\d{2}:\d{2}$/.test(outTime)) {
-          return { success: false, message: 'รูปแบบเวลาออกจริงไม่ถูกต้อง' };
-        }
-        if (inTime && !/^\d{2}:\d{2}$/.test(inTime)) {
-          return { success: false, message: 'รูปแบบเวลากลับถึงไม่ถูกต้อง' };
-        }
-        if (!outTime && !inTime) {
-          return { success: false, message: 'กรุณาระบุเวลาอย่างน้อยหนึ่งเวลา' };
-        }
-        let outNotified = false;
-        if (outTime) {
-          sheet.getRange(i + 1, headers.indexOf('ActualOutTime') + 1).setValue(outTime);
-          sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
-          // แจ้งเตือนผู้ปกครองว่านักเรียนออกจากโรงเรียนแล้ว
-          try {
-            const lineRes = notifyLeaveActualOutEvent_(rowObj.StudentID, rowObj.Reason, outTime, session.fullName, new Date());
-            outNotified = !!lineRes.sent;
-          } catch (lineErr) {
-            Logger.log('ส่ง LINE แจ้งเตือนเวลาออกจริงไม่สำเร็จ: ' + lineErr.message);
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][colId] === requestId) {
+          const rowObj = rowToObject_(headers, data[i]);
+          if (rowObj.Status !== 'approved') {
+            return { success: false, message: 'บันทึกเวลาออกจริงได้เฉพาะคำร้องที่อนุมัติแล้ว' };
           }
+          const outTime = String(actualOutTime || '').trim();
+          const inTime = String(actualInTime || '').trim();
+          if (outTime && !/^\d{2}:\d{2}$/.test(outTime)) {
+            return { success: false, message: 'รูปแบบเวลาออกจริงไม่ถูกต้อง' };
+          }
+          if (inTime && !/^\d{2}:\d{2}$/.test(inTime)) {
+            return { success: false, message: 'รูปแบบเวลากลับถึงไม่ถูกต้อง' };
+          }
+          if (!outTime && !inTime) {
+            return { success: false, message: 'กรุณาระบุเวลาอย่างน้อยหนึ่งเวลา' };
+          }
+          let outNotified = false;
+          if (outTime) {
+            sheet.getRange(i + 1, headers.indexOf('ActualOutTime') + 1).setValue(outTime);
+            sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+            // แจ้งเตือนผู้ปกครองว่านักเรียนออกจากโรงเรียนแล้ว
+            try {
+              const lineRes = notifyLeaveActualOutEvent_(rowObj.StudentID, rowObj.Reason, outTime, session.fullName, new Date());
+              outNotified = !!lineRes.sent;
+            } catch (lineErr) {
+              Logger.log('ส่ง LINE แจ้งเตือนเวลาออกจริงไม่สำเร็จ: ' + lineErr.message);
+            }
+          }
+          if (inTime) {
+            sheet.getRange(i + 1, headers.indexOf('ActualInTime') + 1).setValue(inTime);
+          }
+          logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, '',
+            'บันทึกเวลาออกจริง: ' + (outTime || '-') + ' · กลับถึง: ' + (inTime || '-'));
+          return { success: true, outNotified: outNotified };
         }
-        if (inTime) {
-          sheet.getRange(i + 1, headers.indexOf('ActualInTime') + 1).setValue(inTime);
-        }
-        logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, '',
-          'บันทึกเวลาออกจริง: ' + (outTime || '-') + ' · กลับถึง: ' + (inTime || '-'));
-        return { success: true, outNotified: outNotified };
       }
+      return { success: false, message: 'ไม่พบคำร้องนี้' };
+    } finally {
+      lock.releaseLock();
     }
-    return { success: false, message: 'ไม่พบคำร้องนี้' };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

@@ -36,6 +36,22 @@ function doPost(e) {
     }
     const action = data.action;
 
+    // ===== LIFF: ตรวจยืนยันตัวตน LINE (ID Token) ก่อนใช้ lineUserId =====
+    // ทำงานทันทีเมื่อตั้งค่า LINE_CHANNEL_SECRET ในหน้า "การแจ้งเตือน LINE" — ยังไม่ได้ตั้ง = ใช้วิธีเดิมชั่วคราว
+    const LIFF_IDENTITY_ACTIONS = ['liffBind', 'liffUnbind', 'liffChangePin', 'liffGetMyStudents', 'liffGetStudentScore', 'liffGetNotifications', 'liffSubmitLeave'];
+    if (LIFF_IDENTITY_ACTIONS.indexOf(action) !== -1) {
+      const secret = String(getConfigValue_('LINE_CHANNEL_SECRET') || '').trim();
+      if (secret) {
+        const verified = verifyLineIdToken_(data.idToken);
+        if (!verified.ok) {
+          return jsonResponse_({ success: false, message: 'ไม่สามารถยืนยันตัวตน LINE ได้ — ' + verified.message });
+        }
+        data.lineUserId = verified.lineUserId; // ใช้ตัวตนจาก token ที่ตรวจสอบแล้วเท่านั้น
+      } else {
+        Logger.log('WARN: ยังไม่ตั้งค่า LINE_CHANNEL_SECRET — LIFF ยังเชื่อ lineUserId จาก client (ควรตั้งค่าโดยด่วน)');
+      }
+    }
+
     switch (action) {
       case 'login':
         return jsonResponse_(handleLogin_(data.username, data.password));
@@ -62,7 +78,8 @@ function doPost(e) {
         return jsonResponse_({ success: false, message: 'Unknown action: ' + action });
     }
   } catch (err) {
-    return jsonResponse_({ success: false, message: 'เกิดข้อผิดพลาด: ' + err.message });
+    Logger.log('doPost error: ' + err.message);
+    return jsonResponse_({ success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' });
   }
 }
 

@@ -21,7 +21,8 @@ function api_getSemesterConfig_(token) {
       semester2End: getConfigValue_('SEMESTER_2_END') || ''
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -59,7 +60,8 @@ function api_saveSemesterConfig_(token, payload) {
 
     return { success: true };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -234,7 +236,8 @@ function api_getScoreOverview_(token, filters) {
       summary: { totalAdd, totalDeduct, totalRecords: logsInRange.length }
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -317,7 +320,8 @@ function api_getRoomReasonStats_(token, filters) {
       totalIncidents: Object.values(roomMap).reduce((sum, r) => sum + r.count, 0)
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -427,7 +431,8 @@ function api_getLetterLeaveStats_(token, filters) {
       }
     };
   } catch (err) {
-    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
@@ -528,6 +533,9 @@ function api_exportReport_(token, reportType, filters, format) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์ส่งออกรายงาน' };
+    }
     if (['pdf', 'excel'].indexOf(format) === -1) {
       return { success: false, message: 'เลือกรูปแบบไฟล์ไม่ถูกต้อง' };
     }
@@ -604,7 +612,8 @@ function api_exportReport_(token, reportType, filters, format) {
     logAudit_(session, 'EXPORT', CONFIG.SHEET_NAMES.AUDIT_LOG, reportType, '', format.toUpperCase() + ': ' + outputFile.getName());
     return { success: true, fileUrl: outputFile.getUrl(), fileName: outputFile.getName() };
   } catch (err) {
-    return { success: false, message: 'ไม่สามารถส่งออกรายงานได้: ' + err.message };
+    Logger.log('api_exportReport_ error: ' + err.message);
+    return { success: false, message: 'ไม่สามารถส่งออกรายงานได้ กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

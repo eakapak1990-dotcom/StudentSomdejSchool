@@ -2,6 +2,9 @@
 .clasprc.json
 node_modules/
 
+# Freebuff local state (ไม่ควรขึ้น GitHub — db ใหญ่กว่า 50MB)
+.freebuff/
+
 # OS files
 .DS_Store
 Thumbs.db

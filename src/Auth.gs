@@ -100,3 +100,43 @@ function handleLoginFromClient(username, password) {
 function validateSessionFromClient(token) {
   return validateSession_(token);
 }
+
+/**
+ * ยืนยันตัวตน (username + password) ของผู้ใช้ที่ login อยู่
+ * ใช้สำหรับปลดล็อกการแก้ไขการตั้งค่าที่ถูกล็อก (เช่น หน้า "การแจ้งเตือน LINE")
+ * ไม่สร้าง session ใหม่ — ตรวจสอบแค่รหัสผ่านว่าถูกต้อง
+ */
+function apiVerifyAdminPassword_(token, username, password) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!username || !password) return { success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
+
+    const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colUsername = headers.indexOf('Username');
+    const colPasswordHash = headers.indexOf('PasswordHash');
+    const colFullName = headers.indexOf('FullName');
+    const colActive = headers.indexOf('Active');
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row[colUsername] === username) {
+        if (!row[colActive]) return { success: false, message: 'บัญชีนี้ถูกระงับการใช้งาน' };
+        const hashed = hashPassword_(password);
+        if (hashed === row[colPasswordHash]) {
+          return { success: true, fullName: row[colFullName] };
+        }
+        return { success: false, message: 'รหัสผ่านไม่ถูกต้อง' };
+      }
+    }
+    return { success: false, message: 'ไม่พบชื่อผู้ใช้นี้ในระบบ' };
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
+  }
+}
+
+function verifyAdminPassword(token, username, password) {
+  return apiVerifyAdminPassword_(token, username, password);
+}

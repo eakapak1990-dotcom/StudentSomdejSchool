@@ -31,7 +31,7 @@ function setupAllSheets() {
   ]);
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.LEAVE_REQUESTS, [
-    'RequestID', 'StudentID', 'Reason', 'RequestedOutTime', 'RequestedInTime',
+    'RequestID', 'StudentID', 'Reason', 'RequestedOutTime', 'RequestedInTime', 'RequestedDate',
     'Status', 'ApprovedBy', 'ApprovedByName', 'ApprovalReason',
     'ActualOutTime', 'ActualInTime', 'CreatedAt', 'UpdatedAt'
   ]);

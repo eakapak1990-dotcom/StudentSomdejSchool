@@ -1,5 +1,6 @@
 <script>
   let currentUser = null;
+  let lineSettingsLocked = false; // ล็อกการตั้งค่า LINE หลังบันทึก — แก้ไขต้องยืนยัน username/password
 
   /* ================= THAI DATE UTILITY (พ.ศ. จริง) ================= */
   function toThaiDate(dateInput, withTime) {
@@ -29,6 +30,15 @@
       return h + ":" + m;
     }
     return t;
+  }
+  function formatDateOnlyThai(v) {
+    if (!v) return "-";
+    if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const p = v.split("-");
+      const th = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      return Number(p[2]) + " " + (th[Number(p[1])] || p[1]) + " " + (Number(p[0]) + 543);
+    }
+    return toThaiDate(v, false);
   }
 
   /* ================= SESSION RESTORE ================= */
@@ -1644,7 +1654,7 @@
                   : '<span class="text-secondary small">—</span>';
 
             const timeCell =
-              `ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.` +
+              `${r.RequestedDate ? `วันที่ ${formatDateOnlyThai(r.RequestedDate)} · ` : ""}ออก ${formatTimeDisplay(r.RequestedOutTime)} น. · กลับ ${formatTimeDisplay(r.RequestedInTime)} น.` +
               (r.ActualOutTime
                 ? `<div class="text-secondary" style="font-size:.72rem">ออกจริง ${formatTimeDisplay(r.ActualOutTime)} น.${r.ActualInTime ? " · กลับถึง " + formatTimeDisplay(r.ActualInTime) + " น." : ""}</div>`
                 : "");
@@ -2191,6 +2201,9 @@
       )
       .join("");
 
+    // ล็อกการตั้งค่าเมื่อมีการบันทึกค่าไว้แล้ว (ต้องยืนยัน username/password ก่อนแก้ไข)
+    lineSettingsLocked = !!(s.channelAccessToken || s.liffId);
+
     content.innerHTML = `
       <div class="row g-3 mb-3">
         <div class="col-sm-6 col-lg-3">
@@ -2221,26 +2234,30 @@
 
       <div class="card-panel mb-3">
         <div class="section-title"><span class="bar"></span> ตั้งค่า LINE OA + LIFF</div>
+        <div id="ls_lockBar" class="alert alert-warning small mb-2 py-2" style="${lineSettingsLocked ? "" : "display:none"}">
+          <i class="bi bi-lock me-1"></i> <strong>การตั้งค่า LINE ถูกล็อกแล้ว</strong> — ต้องการแก้ไขต้องยืนยันชื่อผู้ใช้และรหัสผ่านก่อน
+          <button class="btn btn-sm btn-outline-navy ms-2" onclick="unlockLineSettings()"><i class="bi bi-unlock me-1"></i> ปลดล็อกเพื่อแก้ไข</button>
+        </div>
         <div class="row g-2">
           <div class="col-md-6">
             <label class="form-label small fw-semibold">Channel Access Token (Messaging API)</label>
-            <input class="form-control" id="ls_token" value="${s.channelAccessToken}" autocomplete="off">
+            <input class="form-control" id="ls_token" value="${s.channelAccessToken}" autocomplete="off" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">LIFF App ID</label>
-            <input class="form-control" id="ls_liffId" value="${s.liffId}" placeholder="เช่น 2001234567-xxxx">
+            <input class="form-control" id="ls_liffId" value="${s.liffId}" placeholder="เช่น 2001234567-xxxx" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
           <div class="col-md-6">
             <label class="form-label small fw-semibold">ช่องทางติดต่อกลับโรงเรียน (แสดงในข้อความแจ้งเตือน)</label>
-            <input class="form-control" id="ls_contact" value="${s.contactChannel}" placeholder="เช่น 086-4563105">
+            <input class="form-control" id="ls_contact" value="${s.contactChannel}" placeholder="เช่น 086-4563105" ${lineSettingsLocked ? "disabled" : ""}>
           </div>
           <div class="col-md-6 d-flex align-items-end pb-1">
-            <label class="form-check-label small me-3"><input type="checkbox" class="form-check-input me-1" id="ls_notifyAdd" ${s.notifyScoreAdd ? "checked" : ""}>แจ้งเตือนเมื่อนักเรียนได้คะแนนเพิ่ม</label>
+            <label class="form-check-label small me-3"><input type="checkbox" class="form-check-input me-1" id="ls_notifyAdd" ${s.notifyScoreAdd ? "checked" : ""} ${lineSettingsLocked ? "disabled" : ""}>แจ้งเตือนเมื่อนักเรียนได้คะแนนเพิ่ม</label>
           </div>
         </div>
         <div class="d-flex gap-2 mt-3">
-          <button class="btn btn-navy btn-sm px-3" onclick="saveLineSettings()"><i class="bi bi-save2 me-1"></i> บันทึกการตั้งค่า</button>
-          <button class="btn btn-outline-primary btn-sm px-3" onclick="testLineNotification()"><i class="bi bi-send me-1"></i> ทดสอบส่ง</button>
+          <button class="btn btn-navy btn-sm px-3" id="ls_btnSave" onclick="saveLineSettings()"><i class="bi bi-save2 me-1"></i> บันทึกการตั้งค่า</button>
+          <button class="btn btn-outline-primary btn-sm px-3" id="ls_btnTest" onclick="testLineNotification()"><i class="bi bi-send me-1"></i> ทดสอบส่ง</button>
         </div>
         <div class="alert alert-secondary small mt-3 mb-0">
           <i class="bi bi-info-circle me-1"></i>
@@ -2270,6 +2287,73 @@
       </div>
 
       <div id="lineAnnouncements"></div>`;
+    applyLineSettingsLock();
+  }
+
+  function applyLineSettingsLock() {
+    ["ls_token", "ls_liffId", "ls_contact", "ls_notifyAdd"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = lineSettingsLocked;
+    });
+    const btnSave = document.getElementById("ls_btnSave");
+    const btnTest = document.getElementById("ls_btnTest");
+    if (btnSave) {
+      btnSave.disabled = lineSettingsLocked;
+      btnSave.innerHTML = lineSettingsLocked
+        ? '<i class="bi bi-lock me-1"></i> ตั้งค่าถูกล็อก'
+        : '<i class="bi bi-save2 me-1"></i> บันทึกการตั้งค่า';
+    }
+    if (btnTest) btnTest.disabled = lineSettingsLocked;
+    const lockBar = document.getElementById("ls_lockBar");
+    if (lockBar) lockBar.style.display = lineSettingsLocked ? "" : "none";
+  }
+
+  function unlockLineSettings() {
+    Swal.fire({
+      title: "ยืนยันตัวตนเพื่อแก้ไขการตั้งค่า",
+      html:
+        '<input id="swal_user" class="swal2-input" placeholder="ชื่อผู้ใช้ (Username)" autocomplete="off">' +
+        '<input id="swal_pass" class="swal2-input" type="password" placeholder="รหัสผ่าน (Password)">',
+      showCancelButton: true,
+      confirmButtonText: "ยืนยัน",
+      cancelButtonText: "ยกเลิก",
+      preConfirm: () => {
+        const u = document.getElementById("swal_user").value.trim();
+        const p = document.getElementById("swal_pass").value;
+        if (!u || !p) {
+          Swal.showValidationMessage("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
+          return false;
+        }
+        return new Promise((resolve) => {
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (!res.success) {
+                Swal.showValidationMessage(res.message);
+                resolve(false);
+                return;
+              }
+              lineSettingsLocked = false;
+              applyLineSettingsLock();
+              resolve(true);
+            })
+            .withFailureHandler((err) => {
+              Swal.showValidationMessage(err.message);
+              resolve(false);
+            })
+            .verifyAdminPassword(getToken(), u, p);
+        });
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          icon: "success",
+          title: "ปลดล็อกแล้ว",
+          text: "สามารถแก้ไขการตั้งค่าได้",
+          timer: 1300,
+          showConfirmButton: false,
+        });
+      }
+    });
   }
 
   function saveLineSettings() {
@@ -2285,9 +2369,11 @@
           Swal.fire({
             icon: "success",
             title: "บันทึกการตั้งค่า LINE แล้ว",
+            text: "การตั้งค่าถูกล็อกแล้ว — แก้ไขต้องยืนยันชื่อผู้ใช้และรหัสผ่าน",
             timer: 1500,
             showConfirmButton: false,
           });
+          lineSettingsLocked = true;
           loadLineSettings();
         } else {
           Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: res.message });

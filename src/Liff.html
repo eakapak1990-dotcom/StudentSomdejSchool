@@ -617,7 +617,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="home" onclick="switchLiffTab('home')">หน้าแรก</button>
     <button class="tab" data-tab="score" onclick="switchLiffTab('score')">คะแนน</button>
-    <button class="tab" data-tab="leave" onclick="switchLiffTab('leave')">ลาออก</button>
+    <button class="tab" data-tab="leave" onclick="switchLiffTab('leave')">ขออนุญาตออกนอกพื้นที่</button>
     <button class="tab" data-tab="news" onclick="switchLiffTab('news')">ข่าวสาร</button>
   </div>
 
@@ -680,13 +680,15 @@
     <!-- ============ LEAVE ============ -->
     <div class="tab-body" id="tab-leave">
       <div class="card">
-        <div class="card-title"><span class="bar"></span> แจ้งลาออกจากพื้นที่ (ผู้ปกครอง)</div>
+        <div class="card-title"><span class="bar"></span> แจ้งขออนุญาตออกนอกพื้นที่ (ผู้ปกครอง)</div>
         <label class="form-label small fw-semibold">เลือกนักเรียน</label>
         <select class="form-select mb-3" id="leave_studentSelect">
           <option value="">-- เลือกนักเรียน --</option>
         </select>
         <label class="form-label small fw-semibold">เหตุผล <span class="text-danger">*</span></label>
         <textarea class="form-control mb-2" id="leave_reason" rows="2" placeholder="เช่น ไปพบแพทย์ ผู้ปกครองมารับกลับบ้าน"></textarea>
+        <label class="form-label small fw-semibold">วันที่ขอออกนอกพื้นที่ <span class="text-danger">*</span></label>
+        <input type="date" class="form-control mb-2" id="leave_date">
         <div class="row g-2 mb-3">
           <div class="col-6">
             <label class="form-label small fw-semibold">เวลาที่ขอออก <span class="text-danger">*</span></label>
@@ -1072,14 +1074,15 @@
     function submitLiffLeave() {
       const studentId = $("leave_studentSelect").value;
       const reason = $("leave_reason").value.trim();
+      const leaveDate = $("leave_date").value;
       const outTime = $("leave_outTime").value;
       const inTime = $("leave_inTime").value;
       if (!studentId) {
         Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
         return;
       }
-      if (!reason || !outTime || !inTime) {
-        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุเหตุผล เวลาที่ขอออก และเวลาที่ขอกลับ" });
+      if (!reason || !leaveDate || !outTime || !inTime) {
+        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุเหตุผล วันที่ขอออก เวลาที่ขอออก และเวลาที่ขอกลับ" });
         return;
       }
       google.script.run
@@ -1096,13 +1099,14 @@
             showConfirmButton: false,
           });
           $("leave_reason").value = "";
+          $("leave_date").value = "";
           $("leave_outTime").value = "";
           $("leave_inTime").value = "";
         })
         .withFailureHandler(function (err) {
           Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาด", text: err.message });
         })
-        .apiLiffSubmitLeave(lineUserId, studentId, reason, outTime, inTime);
+        .apiLiffSubmitLeave(lineUserId, studentId, reason, leaveDate, outTime, inTime);
     }
 
     /* ============ NEWS & NOTIFICATIONS ============ */

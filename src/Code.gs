@@ -54,7 +54,7 @@ function doPost(e) {
       case 'liffGetNotifications':
         return jsonResponse_(apiLiffGetNotifications(data.lineUserId, data.studentId));
       case 'liffSubmitLeave':
-        return jsonResponse_(apiLiffSubmitLeave(data.lineUserId, data.studentId, data.reason, data.outTime, data.inTime));
+        return jsonResponse_(apiLiffSubmitLeave(data.lineUserId, data.studentId, data.reason, data.leaveDate, data.outTime, data.inTime));
       case 'liffGetAnnouncements':
         return jsonResponse_(apiLiffGetAnnouncements(data.lineUserId));
 

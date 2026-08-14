@@ -253,9 +253,15 @@ function notifyLetterEvent_(studentId, letterNo, detail, appointmentText, record
 }
 
 /** ③ ได้รับอนุญาตให้ออกนอกบริเวณโรงเรียน */
-function notifyLeaveApprovalEvent_(studentId, reason, outTime, inTime, approver, timestamp) {
+function notifyLeaveApprovalEvent_(studentId, reason, leaveDate, outTime, inTime, approver, timestamp) {
   const st = findStudentById_(studentId);
   if (!st) return { sent: false };
+  const outT = formatLeaveTime_(outTime);
+  const inT = formatLeaveTime_(inTime);
+  const dateT = thaiShortDateText_(leaveDate);
+  let extra = '';
+  if (dateT) extra = 'วันที่ ' + dateT + ' · ';
+  extra += 'ออก ' + (outT || '-') + ' น. · กลับ ' + (inT || '-') + ' น.';
   return notifyStudentEvent_(studentId, {
     title: '✅ อนุมัติคำร้องออกนอกโรงเรียน',
     accentColor: '#1F8A5B',
@@ -263,7 +269,7 @@ function notifyLeaveApprovalEvent_(studentId, reason, outTime, inTime, approver,
     studentClass: (st.Grade || '-') + '/' + (st.Room || '-'),
     timestampText: thaiTimestampText_(timestamp || new Date()),
     eventText: reason || '-',
-    extraText: 'ออก ' + outTime + ' น. · กลับ ' + inTime + ' น.',
+    extraText: extra,
     recorder: approver || '-',
     altText: 'อนุมัติคำร้องออกนอกโรงเรียน: ' + getStudentDisplayName_(st)
   });
@@ -673,33 +679,97 @@ function apiLiffGetNotifications(lineUserId, studentId) {
 }
 
 /** ผู้ปกครองยื่นคำร้องขอออกนอกโรงเรียนผ่าน LINE */
-function apiLiffSubmitLeave(lineUserId, studentId, reason, outTime, inTime) {
+function apiLiffSubmitLeave(lineUserId, studentId, reason, leaveDate, outTime, inTime) {
   try {
     const binding = getLineBindingsForUser_(lineUserId).filter(function (b) { return b.StudentID === String(studentId).trim(); });
     if (!binding.length) {
       return { success: false, message: 'คุณไม่ได้รับอนุญาตให้ยื่นคำร้องแทนนักเรียนคนนี้ — กรุณาผูกบัญชีก่อน' };
     }
     reason = String(reason || '').trim();
+    leaveDate = String(leaveDate || '').trim();
     outTime = String(outTime || '').trim();
     inTime = String(inTime || '').trim();
-    if (!reason || !outTime || !inTime) return { success: false, message: 'กรุณากรอกเหตุผลและเวลาที่ขอออก/ขอกลับให้ครบ' };
+    if (!reason || !leaveDate || !outTime || !inTime) return { success: false, message: 'กรุณากรอกเหตุผล วันที่ขอออก และเวลาที่ขอออก/ขอกลับให้ครบ' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(leaveDate)) {
+      return { success: false, message: 'รูปแบบวันที่ไม่ถูกต้อง' };
+    }
     if (!/^\d{2}:\d{2}$/.test(outTime) || !/^\d{2}:\d{2}$/.test(inTime)) {
       return { success: false, message: 'รูปแบบเวลาไม่ถูกต้อง' };
     }
     const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+    ensureLeaveRequestDateColumn_();
     const requestId = Utilities.getUuid();
     const now = new Date();
     const nextRow = sheet.getLastRow() + 1;
-    sheet.getRange(nextRow, 4, 1, 2).setNumberFormat('@');
-    sheet.appendRow([requestId, binding[0].StudentID, reason, outTime, inTime, 'pending', '', '', '', '', '', now, now]);
+    // บันทึกวันที่/เวลาเป็นข้อความล้วน (ตั้ง Format 'Plain Text' ก่อนเขียน + เขียนซ้ำหลังตั้ง Format)
+    // ป้องกัน Google Sheets แปลง "10:00" เป็นวันที่ (1899-12-30 ...) ทำให้ Flex แสดงเวลาผิด
+    sheet.getRange(nextRow, 4, 1, 3).setNumberFormat('@');
+    sheet.appendRow([requestId, binding[0].StudentID, reason, outTime, inTime, leaveDate, 'pending', '', '', '', '', '', now, now]);
+    sheet.getRange(nextRow, 4, 1, 3).setNumberFormat('@');
+    sheet.getRange(nextRow, 4, 1, 3).setValues([[outTime, inTime, leaveDate]]);
     addTimelineEvent_(binding[0].StudentID, 'leave',
       'ผู้ปกครองยื่นคำร้องขอออกนอกโรงเรียนผ่าน LINE: ' + reason,
-      'ขอออก ' + outTime + ' น. · ขอกลับ ' + inTime + ' น. · ผ่าน LINE',
+      'วันที่ ' + leaveDate + ' · ขอออก ' + outTime + ' น. · ขอกลับ ' + inTime + ' น. · ผ่าน LINE',
       'ผู้ปกครอง (LINE)');
     return { success: true, requestId: requestId };
   } catch (err) {
     return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ: ' + err.message };
   }
+}
+
+/**
+ * ตรวจสอบว่า Sheet LeaveRequests มีคอลัมน์ RequestedDate แล้วหรือยัง
+ * ถ้ายังไม่มี → เพิ่มคอลัมน์ถัดจาก RequestedInTime (กันข้อมูลเดิมเลื่อน) + เขียนหัวคอลัมน์
+ */
+function ensureLeaveRequestDateColumn_() {
+  const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (headers.indexOf('RequestedDate') !== -1) return;
+  const colIn = headers.indexOf('RequestedInTime'); // 0-based index
+  let newColPos; // 1-based position ของคอลัมน์ใหม่ (ถัดจาก RequestedInTime)
+  if (colIn !== -1) {
+    // RequestedInTime อยู่ 1-based ตำแหน่ง colIn+1 → แทรกคอลัมน์ใหม่ที่ตำแหน่ง colIn+2
+    sheet.insertColumnAfter(colIn + 1);
+    newColPos = colIn + 2;
+  } else {
+    sheet.insertColumnAfter(headers.length);
+    newColPos = headers.length + 1;
+  }
+  sheet.getRange(1, newColPos).setValue('RequestedDate')
+    .setFontWeight('bold').setBackground('#152A52').setFontColor('#FFFFFF');
+  Logger.log('ensureLeaveRequestDateColumn_: เพิ่มคอลัมน์ RequestedDate แล้ว');
+}
+
+/** แปลงค่าเวลาจาก Sheet (อาจเป็น Date ที่เพี้ยนจาก Excel epoch) เป็น HH:mm */
+function formatLeaveTime_(v) {
+  if (v === undefined || v === null || v === '') return null;
+  if (typeof v === 'string' && /^\d{1,2}:\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (!isNaN(d.getTime())) {
+    const h = String(d.getUTCHours()).padStart(2, '0');
+    const m = String(d.getUTCMinutes()).padStart(2, '0');
+    return h + ':' + m;
+  }
+  return String(v);
+}
+
+/** แปลงวันที่เป็นข้อความไทยสั้น เช่น "14 ส.ค. 2569" (รองรับทั้ง 'YYYY-MM-DD' และ Date) */
+function thaiShortDateText_(v) {
+  if (v === undefined || v === null || v === '') return null;
+  let day, month, year;
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const p = v.split('-');
+    day = Number(p[2]); month = Number(p[1]); year = Number(p[0]);
+  } else {
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    const tz = Session.getScriptTimeZone();
+    day = Number(Utilities.formatDate(d, tz, 'd'));
+    month = Number(Utilities.formatDate(d, tz, 'M'));
+    year = Number(Utilities.formatDate(d, tz, 'yyyy'));
+  }
+  const th = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  return day + ' ' + (th[month] || month) + ' ' + (year + 543);
 }
 
 /** ประวัติคะแนนล่าสุดของนักเรียน (แสดงใน LIFF) */

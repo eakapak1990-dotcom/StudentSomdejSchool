@@ -12,36 +12,41 @@ function api_createLeaveRequest_(token, payload) {
 
     const studentId = payload.studentId;
     const reason = (payload.reason || '').trim();
+    const leaveDate = (payload.leaveDate || '').trim();
     const outTime = (payload.outTime || '').trim();
     const inTime = (payload.inTime || '').trim();
 
     if (!studentId) return { success: false, message: 'กรุณาเลือกนักเรียน' };
     if (!reason) return { success: false, message: 'กรุณาระบุเหตุผล' };
-    if (!outTime || !inTime) return { success: false, message: 'กรุณาระบุเวลาที่ขอออกและขอกลับ' };
+    if (!leaveDate || !outTime || !inTime) return { success: false, message: 'กรุณาระบุวันที่และเวลาที่ขอออก/ขอกลับ' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(leaveDate)) return { success: false, message: 'รูปแบบวันที่ไม่ถูกต้อง' };
 
     const student = findStudentById_(studentId);
     if (!student) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
 
    const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+    ensureLeaveRequestDateColumn_();
     const requestId = Utilities.getUuid();
     const recordSequence = getNextRecordSequence_('leave');
     const now = new Date();
     const nextRow = sheet.getLastRow() + 1;
 
-    // บังคับให้คอลัมน์เวลา (D=RequestedOutTime, E=RequestedInTime) เป็น Plain Text
-    // ป้องกัน Google Sheet ตีความ "11:00" เป็นวันที่อัตโนมัติ
-    sheet.getRange(nextRow, 4, 1, 2).setNumberFormat('@');
+    // บังคับให้คอลัมน์วันที่/เวลา (D=RequestedOutTime, E=RequestedInTime, F=RequestedDate) เป็น Plain Text
+    // ป้องกัน Google Sheet ตีความ "11:00" เป็นวันที่อัตโนมัติ (1899-12-30 ...)
+    sheet.getRange(nextRow, 4, 1, 3).setNumberFormat('@');
 
     sheet.appendRow([
-      requestId, studentId, reason, outTime, inTime,
+      requestId, studentId, reason, outTime, inTime, leaveDate,
       'pending', '', '', '',
       '', '', now, now
     ]);
+    sheet.getRange(nextRow, 4, 1, 3).setNumberFormat('@');
+    sheet.getRange(nextRow, 4, 1, 3).setValues([[outTime, inTime, leaveDate]]);
 
     const studentName = (student.Prefix || '') + (student.FirstName || '') + ' ' + (student.LastName || '');
     addTimelineEvent_(studentId, 'leave',
       'ยื่นคำร้องขออนุญาตออกนอกโรงเรียน: ' + reason,
-      'ขอออก ' + outTime + ' · ขอกลับ ' + inTime + ' · บันทึกโดย ' + session.fullName,
+      'วันที่ ' + leaveDate + ' · ขอออก ' + outTime + ' · ขอกลับ ' + inTime + ' · บันทึกโดย ' + session.fullName,
       session.fullName);
 
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, '', 'สร้างคำร้อง: ' + studentName + ' - ' + reason);
@@ -143,7 +148,7 @@ function api_updateLeaveStatus_(token, requestId, status, approvalReason) {
         // แจ้งเตือนผู้ปกครองผ่าน LINE เมื่ออนุมัติ — ไม่กระทบงานหลักถ้า LINE error
         if (status === 'approved') {
           try {
-            notifyLeaveApprovalEvent_(studentId, rowObj.Reason, rowObj.RequestedOutTime, rowObj.RequestedInTime, session.fullName, new Date());
+            notifyLeaveApprovalEvent_(studentId, rowObj.Reason, rowObj.RequestedDate, rowObj.RequestedOutTime, rowObj.RequestedInTime, session.fullName, new Date());
           } catch (lineErr) {
             Logger.log('ส่ง LINE แจ้งเตือนอนุมัติคำร้องไม่สำเร็จ: ' + lineErr.message);
           }

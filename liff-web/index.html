@@ -3,7 +3,7 @@
 
 <!--
   ═══════════════════════════════════════════════════════════════════════
-  หน้า LIFF แบบ STANDALONE (web v1)
+  หน้า LIFF แบบ STANDALONE (web v2)
   ───────────────────────────────────────────────────────────────────────
   เหตุผล: Google Apps Script (HtmlService) ฝังทุกหน้าใน iframe
   (script.googleusercontent.com/userCodeAppPanel) ทำให้ LINE ไม่ attach
@@ -627,17 +627,17 @@
       <div class="brand-mark">SA</div>
       <div>
         <div class="app-name">ระบบสารสนเทศโรงเรียน</div>
-        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง · web v1</div>
+        <div class="app-sub">กลุ่มบริหารกิจการนักเรียน · ผู้ปกครอง · web v2</div>
       </div>
     </div>
   </header>
 
-  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE... (web v1)</div>
+  <div id="liffStatus" class="liff-status"><i class="bi bi-hourglass-split me-1"></i> กำลังเชื่อมต่อ LINE... (web v2)</div>
 
   <div class="tabs">
     <button class="tab active" data-tab="home" onclick="switchLiffTab('home')">หน้าแรก</button>
     <button class="tab" data-tab="score" onclick="switchLiffTab('score')">คะแนน</button>
-    <button class="tab" data-tab="leave" onclick="switchLiffTab('leave')">ลาออก</button>
+    <button class="tab" data-tab="leave" onclick="switchLiffTab('leave')">ขออนุญาตออกนอกพื้นที่</button>
     <button class="tab" data-tab="news" onclick="switchLiffTab('news')">ข่าวสาร</button>
   </div>
 
@@ -700,13 +700,15 @@
     <!-- ============ LEAVE ============ -->
     <div class="tab-body" id="tab-leave">
       <div class="card">
-        <div class="card-title"><span class="bar"></span> แจ้งลาออกจากพื้นที่ (ผู้ปกครอง)</div>
+        <div class="card-title"><span class="bar"></span> แจ้งขออนุญาตออกนอกพื้นที่ (ผู้ปกครอง)</div>
         <label class="form-label small fw-semibold">เลือกนักเรียน</label>
         <select class="form-select mb-3" id="leave_studentSelect">
           <option value="">-- เลือกนักเรียน --</option>
         </select>
         <label class="form-label small fw-semibold">เหตุผล <span class="text-danger">*</span></label>
         <textarea class="form-control mb-2" id="leave_reason" rows="2" placeholder="เช่น ไปพบแพทย์ ผู้ปกครองมารับกลับบ้าน"></textarea>
+        <label class="form-label small fw-semibold">วันที่ขอออกนอกพื้นที่ <span class="text-danger">*</span></label>
+        <input type="date" class="form-control mb-2" id="leave_date">
         <div class="row g-2 mb-3">
           <div class="col-6">
             <label class="form-label small fw-semibold">เวลาที่ขอออก <span class="text-danger">*</span></label>
@@ -1071,17 +1073,18 @@
     function submitLiffLeave() {
       var studentId = $("leave_studentSelect").value;
       var reason = $("leave_reason").value.trim();
+      var leaveDate = $("leave_date").value;
       var outTime = $("leave_outTime").value;
       var inTime = $("leave_inTime").value;
       if (!studentId) {
         Swal.fire({ icon: "warning", title: "กรุณาเลือกนักเรียน" });
         return;
       }
-      if (!reason || !outTime || !inTime) {
-        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุเหตุผล เวลาที่ขอออก และเวลาที่ขอกลับ" });
+      if (!reason || !leaveDate || !outTime || !inTime) {
+        Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ", text: "ต้องระบุเหตุผล วันที่ขอออก เวลาที่ขอออก และเวลาที่ขอกลับ" });
         return;
       }
-      api("liffSubmitLeave", { lineUserId: lineUserId, studentId: studentId, reason: reason, outTime: outTime, inTime: inTime }).then(function (res) {
+      api("liffSubmitLeave", { lineUserId: lineUserId, studentId: studentId, reason: reason, leaveDate: leaveDate, outTime: outTime, inTime: inTime }).then(function (res) {
         if (!res.success) {
           Swal.fire({ icon: "error", title: "ส่งคำร้องไม่สำเร็จ", text: res.message });
           return;
@@ -1094,6 +1097,7 @@
           showConfirmButton: false,
         });
         $("leave_reason").value = "";
+        $("leave_date").value = "";
         $("leave_outTime").value = "";
         $("leave_inTime").value = "";
       });

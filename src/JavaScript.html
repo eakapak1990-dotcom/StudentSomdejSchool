@@ -1029,84 +1029,100 @@
       .withSuccessHandler(function (res) {
         clearTimeout(_editTimeout);
         Swal.close();
-        if (!res || !res.success) {
+        
+        try {
+          if (!res || !res.success) {
+            Swal.fire({
+              icon: "error",
+              title: "โหลดข้อมูลไม่สำเร็จ",
+              text: (res && res.message) || "ไม่ได้รับข้อมูลจากระบบ",
+            });
+            return;
+          }
+          var st = res.student;
+          var p = res.parent || {};
+          if (!st) {
+            Swal.fire({
+              icon: "error",
+              title: "ไม่พบข้อมูลนักเรียน",
+              text: "รหัสนักเรียน " + studentId + " ไม่มีในระบบ",
+            });
+            return;
+          }
+
+          document.getElementById("studentModalTitle").textContent = "แก้ไขข้อมูลนักเรียน";
+          document.getElementById("sm_studentId").value = studentId;
+          document.getElementById("sm_studentCode").value = st.StudentID || "";
+          document.getElementById("sm_studentCode").readOnly = true;
+          document.getElementById("sm_studentCodeHelp").textContent = "รหัสนักเรียนไม่สามารถแก้ไขได้หลังสร้างแล้ว";
+          document.getElementById("sm_photoInput").value = "";
+          document.getElementById("sm_photoStatus").textContent = "";
+          pendingPhotoBase64 = null;
+          pendingPhotoMime = null;
+          pendingPhotoExt = null;
+          
+          var fNameStr = String(st.FirstName || "-");
+          var lNameStr = String(st.LastName || "-");
+          document.getElementById("sm_photoPreview").innerHTML = renderAvatarHtml(
+            st.PhotoFileID,
+            fNameStr[0] + lNameStr[0],
+            "avatar-lg",
+          );
+
+          document.getElementById("sm_prefix").value = st.Prefix || "";
+          document.getElementById("sm_firstName").value = st.FirstName || "";
+          document.getElementById("sm_lastName").value = st.LastName || "";
+          document.getElementById("sm_gender").value = st.Gender || "";
+          document.getElementById("sm_grade").value = st.Grade || "ม.1";
+          document.getElementById("sm_room").value = st.Room || "";
+          document.getElementById("sm_no").value = st.No || "";
+          document.getElementById("sm_citizenId").value = st.CitizenID || "";
+          
+          // Handle DOB safely in case it is returned as a number or other type
+          var dobStr = "";
+          if (st.DOB) {
+             dobStr = String(st.DOB).split("T")[0];
+          }
+          document.getElementById("sm_dob").value = dobStr;
+          
+          document.getElementById("sm_bloodType").value = st.BloodType || "";
+          document.getElementById("sm_weight").value = st.Weight || "";
+          document.getElementById("sm_height").value = st.Height || "";
+          document.getElementById("sm_nationality").value = st.Nationality || "ไทย";
+          document.getElementById("sm_religion").value = st.Religion || "พุทธ";
+          document.getElementById("sm_ethnicity").value = st.Ethnicity || "ไทย";
+
+          document.getElementById("sm_addressNo").value = st.Address_No || "";
+          document.getElementById("sm_addressMoo").value = st.Address_Moo || "";
+          document.getElementById("sm_addressRoad").value = st.Address_Road || "";
+          document.getElementById("sm_addressTambon").value = st.Address_Tambon || "";
+          document.getElementById("sm_addressAmphoe").value = st.Address_Amphoe || "";
+          document.getElementById("sm_addressProvince").value = st.Address_Province || "";
+
+          document.getElementById("sm_parentName").value = p.ParentName || "";
+          document.getElementById("sm_parentRelation").value = p.ParentRelation || "บิดา";
+          document.getElementById("sm_parentJob").value = p.ParentJob || "";
+          document.getElementById("sm_parentPhone").value = p.ParentPhone || "";
+          document.getElementById("sm_fatherName").value = p.FatherName || "";
+          document.getElementById("sm_fatherJob").value = p.FatherJob || "";
+          document.getElementById("sm_motherName").value = p.MotherName || "";
+          document.getElementById("sm_motherJob").value = p.MotherJob || "";
+
+          updateEducationPhaseLabel();
+          
+          setTimeout(function() {
+            var modalEl = document.getElementById("studentModal");
+            var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.show();
+          }, 350);
+          
+        } catch (err) {
           Swal.fire({
             icon: "error",
-            title: "โหลดข้อมูลไม่สำเร็จ",
-            text: (res && res.message) || "ไม่ได้รับข้อมูลจากระบบ",
+            title: "เกิดข้อผิดพลาดในการแสดงผล",
+            text: err.message,
           });
-          return;
         }
-        var st = res.student;
-        var p = res.parent || {};
-        if (!st) {
-          Swal.fire({
-            icon: "error",
-            title: "ไม่พบข้อมูลนักเรียน",
-            text: "รหัสนักเรียน " + studentId + " ไม่มีในระบบ",
-          });
-          return;
-        }
-
-        document.getElementById("studentModalTitle").textContent =
-          "แก้ไขข้อมูลนักเรียน";
-        document.getElementById("sm_studentId").value = studentId;
-        document.getElementById("sm_studentCode").value = st.StudentID || "";
-        document.getElementById("sm_studentCode").readOnly = true;
-        document.getElementById("sm_studentCodeHelp").textContent =
-          "รหัสนักเรียนไม่สามารถแก้ไขได้หลังสร้างแล้ว";
-        document.getElementById("sm_photoInput").value = "";
-        document.getElementById("sm_photoStatus").textContent = "";
-        pendingPhotoBase64 = null;
-        pendingPhotoMime = null;
-        pendingPhotoExt = null;
-        document.getElementById("sm_photoPreview").innerHTML = renderAvatarHtml(
-          st.PhotoFileID,
-          (st.FirstName || "-")[0] + (st.LastName || "-")[0],
-          "avatar-lg",
-        );
-
-        document.getElementById("sm_prefix").value = st.Prefix || "";
-        document.getElementById("sm_firstName").value = st.FirstName || "";
-        document.getElementById("sm_lastName").value = st.LastName || "";
-        document.getElementById("sm_gender").value = st.Gender || "";
-        document.getElementById("sm_grade").value = st.Grade || "ม.1";
-        document.getElementById("sm_room").value = st.Room || "";
-        document.getElementById("sm_no").value = st.No || "";
-        document.getElementById("sm_citizenId").value = st.CitizenID || "";
-        document.getElementById("sm_dob").value = st.DOB
-          ? st.DOB.split("T")[0]
-          : "";
-        document.getElementById("sm_bloodType").value = st.BloodType || "";
-        document.getElementById("sm_weight").value = st.Weight || "";
-        document.getElementById("sm_height").value = st.Height || "";
-        document.getElementById("sm_nationality").value =
-          st.Nationality || "ไทย";
-        document.getElementById("sm_religion").value = st.Religion || "พุทธ";
-        document.getElementById("sm_ethnicity").value = st.Ethnicity || "ไทย";
-
-        document.getElementById("sm_addressNo").value = st.Address_No || "";
-        document.getElementById("sm_addressMoo").value = st.Address_Moo || "";
-        document.getElementById("sm_addressRoad").value = st.Address_Road || "";
-        document.getElementById("sm_addressTambon").value =
-          st.Address_Tambon || "";
-        document.getElementById("sm_addressAmphoe").value =
-          st.Address_Amphoe || "";
-        document.getElementById("sm_addressProvince").value =
-          st.Address_Province || "";
-
-        document.getElementById("sm_parentName").value = p.ParentName || "";
-        document.getElementById("sm_parentRelation").value =
-          p.ParentRelation || "บิดา";
-        document.getElementById("sm_parentJob").value = p.ParentJob || "";
-        document.getElementById("sm_parentPhone").value = p.ParentPhone || "";
-        document.getElementById("sm_fatherName").value = p.FatherName || "";
-        document.getElementById("sm_fatherJob").value = p.FatherJob || "";
-        document.getElementById("sm_motherName").value = p.MotherName || "";
-        document.getElementById("sm_motherJob").value = p.MotherJob || "";
-
-        updateEducationPhaseLabel();
-        new bootstrap.Modal(document.getElementById("studentModal")).show();
       })
       .withFailureHandler(function (err) {
         clearTimeout(_editTimeout);

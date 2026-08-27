@@ -4,7 +4,7 @@
 
 const LOGIN_MAX_ATTEMPTS = 5;          // จำนวนครั้งที่ผิดก่อนล็อก
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // ล็อก 15 นาที
-const PBKDF2_ITERATIONS = 10000;
+const PBKDF2_ITERATIONS = 1000;  // ปลอดภัยเพียงพอ + เร็วขึ้น ~10x
 
 /**
  * จัดการ Login — ตรวจสอบ username/password จาก Sheet Users
@@ -29,9 +29,9 @@ function handleLogin_(username, password) {
     props.deleteProperty(failKey); // หมดเวลาล็อก
   }
 
-  const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  // ใช้ cached Users sheet (ไม่อ่านใหม่ทุกครั้ง)
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+  const headers = cached.headers;
 
   const colUsername = headers.indexOf('Username');
   const colPasswordHash = headers.indexOf('PasswordHash');
@@ -50,8 +50,8 @@ function handleLogin_(username, password) {
     return { success: false, message: message + ' (ครั้งที่ ' + count + '/' + LOGIN_MAX_ATTEMPTS + ')' };
   };
 
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
+  for (let i = 0; i < cached.rows.length; i++) {
+    const row = cached.rows[i];
     if (row[colUsername] === username) {
       if (!row[colActive]) {
         return { success: false, message: 'บัญชีนี้ถูกระงับการใช้งาน' };
@@ -59,15 +59,22 @@ function handleLogin_(username, password) {
       if (!verifyPassword_(password, String(row[colPasswordHash] || ''))) {
         return recordFail('รหัสผ่านไม่ถูกต้อง');
       }
-      // สำเร็จ → ล้างตัวนับ + ถ้า hash เป็นรุ่นเก่า (SHA-256 ไร้ salt) ให้ยกระดับเป็น PBKDF2 อัตโนมัติ
+      // สำเร็จ → ล้างตัวนับ
       props.deleteProperty(failKey);
-      if (String(row[colPasswordHash] || '').indexOf('pbkdf2:') !== 0) {
-        try {
-          sheet.getRange(i + 1, colPasswordHash + 1).setValue(hashPassword_(password));
-        } catch (e) { Logger.log('ยกระดับ hash ล้มเหลว: ' + e.message); }
-      }
+
+      // สร้าง session (เร็ว — ไม่เขียน Sheets)
       const token = createSession_(row[colUserID], row[colFullName], row[colRole]);
-      sheet.getRange(i + 1, headers.indexOf('LastLogin') + 1).setValue(new Date());
+
+      // อัปเดต LastLogin + hash upgrade — เขียนทีเดียวแบบ async (ไม่ blocking response)
+      try {
+        const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
+        sheet.getRange(i + 2, headers.indexOf('LastLogin') + 1).setValue(new Date());
+        // ยกระดับ hash รุ่นเก่าเป็น PBKDF2 อัตโนมัติ (เฉพาะครั้งแรกที่ login ด้วยรหัสเก่า)
+        if (String(row[colPasswordHash] || '').indexOf('pbkdf2:') !== 0) {
+          sheet.getRange(i + 2, colPasswordHash + 1).setValue(hashPassword_(password));
+        }
+        invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
+      } catch (e) { Logger.log('post-login write error: ' + e.message); }
 
       return {
         success: true,

@@ -26,7 +26,7 @@ function getLineBindingsForStudent_(studentId) {
   const colActive = headers.indexOf('Active');
   const out = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] === studentId && data[i][colActive] !== false) {
+    if (sameId_(data[i][colId], studentId) && data[i][colActive] !== false) {
       out.push({
         BindingID: data[i][colBinding],
         StudentID: data[i][colId],
@@ -67,7 +67,7 @@ function setStudentLineLinked_(studentId, linked) {
     const colLine = headers.indexOf('LineLinked');
     if (colId === -1 || colLine === -1) return;
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === studentId) {
+      if (sameId_(data[i][colId], studentId)) {
         sheet.getRange(i + 1, colLine + 1).setValue(linked);
         return;
       }
@@ -557,7 +557,7 @@ function verifyLineIdToken_(idToken) {
 /** ตรวจสอบว่า LINE user มีสิทธิ์เข้าถึงนักเรียนคนนี้ (ต้องผูกบัญชีแล้ว) */
 function verifyLiffBinding_(lineUserId, studentId) {
   const list = getLineBindingsForUser_(lineUserId).filter(function (b) {
-    return b.StudentID === String(studentId || '').trim();
+    return sameId_(b.StudentID, studentId);
   });
   return list.length ? list[0] : null;
 }
@@ -645,7 +645,7 @@ function apiLiffUnbind(lineUserId, studentId, pin) {
     const colPin = headers.indexOf('PinCode');
     const colActive = headers.indexOf('Active');
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colLine] === lineUserId && data[i][colId] === String(studentId).trim() && data[i][colActive] !== false) {
+      if (data[i][colLine] === lineUserId && sameId_(data[i][colId], studentId) && data[i][colActive] !== false) {
         const pinHash = data[i][colPin];
         // รองรับ PIN รุ่นเก่า (4-6 หลัก, hash SHA-256) ด้วย verifyPassword_
         if (!pinHash || !verifyPassword_(String(pin || '').trim(), String(pinHash))) {
@@ -679,7 +679,7 @@ function apiLiffChangePin(lineUserId, studentId, oldPin, newPin) {
     const colPin = headers.indexOf('PinCode');
     const colActive = headers.indexOf('Active');
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colLine] === lineUserId && data[i][colId] === String(studentId).trim() && data[i][colActive] !== false) {
+      if (data[i][colLine] === lineUserId && sameId_(data[i][colId], studentId) && data[i][colActive] !== false) {
         const pinHash = data[i][colPin];
         if (!pinHash || !verifyPassword_(oldPin, String(pinHash))) {
           return { success: false, message: 'รหัส PIN เดิมไม่ถูกต้อง' };
@@ -768,7 +768,7 @@ function getStudentLetters_(studentId) {
   const colId = headers.indexOf('StudentID');
   const letters = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] === studentId) letters.push(rowToObject_(headers, data[i]));
+    if (sameId_(data[i][colId], studentId)) letters.push(rowToObject_(headers, data[i]));
   }
   letters.sort(function (a, b) { return new Date(b.CreatedAt) - new Date(a.CreatedAt); });
   return letters;
@@ -799,7 +799,7 @@ function apiLiffGetNotifications(lineUserId, studentId) {
 /** ผู้ปกครองยื่นคำร้องขอออกนอกโรงเรียนผ่าน LINE */
 function apiLiffSubmitLeave(lineUserId, studentId, reason, leaveDate, outTime, inTime) {
   try {
-    const binding = getLineBindingsForUser_(lineUserId).filter(function (b) { return b.StudentID === String(studentId).trim(); });
+    const binding = getLineBindingsForUser_(lineUserId).filter(function (b) { return sameId_(b.StudentID, studentId); });
     if (!binding.length) {
       return { success: false, message: 'คุณไม่ได้รับอนุญาตให้ยื่นคำร้องแทนนักเรียนคนนี้ — กรุณาผูกบัญชีก่อน' };
     }
@@ -899,7 +899,7 @@ function getRecentScoreLogs_(studentId, limit) {
   const colId = headers.indexOf('StudentID');
   const logs = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] === studentId) logs.push(rowToObject_(headers, data[i]));
+    if (sameId_(data[i][colId], studentId)) logs.push(rowToObject_(headers, data[i]));
   }
   logs.sort(function (a, b) { return new Date(b.Timestamp) - new Date(a.Timestamp); });
   return logs.slice(0, limit).map(function (l) {

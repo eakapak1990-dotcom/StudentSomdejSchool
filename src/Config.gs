@@ -4,9 +4,9 @@
 
 const CONFIG = {
   // ⚠️ Spreadsheet ID ของ Google Sheets ที่ใช้เป็น Database
-  SPREADSHEET_ID: '1X_lQTXUF8yLiCV-nkye7mfAmFyGjAdMuVvXk0jICAQA',
-  SCRIPT_ID: '1XaxgmZ6vqLEGP_CIR_KI9H6cMzuOkZjuXYetmSQ816cWRU_fxV1YlMh-',
-  WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbydTMIeXgYK-sd_FT8h4BsEinZeFfW-f71Dh6kRggBRIvfT1sTPMy6FTyt-XMKgaqxVMA/exec',
+  SPREADSHEET_ID: '10Rr3Z0fYJxpwBT9a_OuQ5dBFR781-y1FxbAE1u1uKfg',
+  SCRIPT_ID: '17BbuoNou2OrKTA-ZUx8fd849haMZQUX7h1x3U6FYYIoOStxbExFxawBQ',
+  WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbxPLGu4ps-ejjLDzRVkRI_DLQoChdz4GmVxfpdg0IsGvwICXeAHPcozBXnXoZAxKiJ-/exec',
 
   APP_NAME: 'ระบบบริหารงานกลุ่มบริหารกิจการนักเรียน',
   VERSION: '1.0.0',

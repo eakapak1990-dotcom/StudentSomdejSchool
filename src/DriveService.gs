@@ -2,7 +2,7 @@
 // DRIVESERVICE.GS - จัดการโฟลเดอร์ Google Drive สำหรับเก็บเอกสาร
 // ============================================
 
-const DRIVE_ROOT_FOLDER_ID = '1-R2d4CFvwjcgTP7VwfkMbiJ2Gc1KV1VH';
+const DRIVE_ROOT_FOLDER_ID = '1caICS8KZnq855lqtIHuR3tMHfopRAmFw';
 
 /**
  * หาหรือสร้างโฟลเดอร์ย่อยภายใต้ parent ที่กำหนด

@@ -4,7 +4,7 @@
 
 // แก้ไขรูปแบบ/ข้อความของหนังสือได้จาก Google Docs นี้โดยตรง
 // ไม่ต้องแก้ไขโค้ดเพื่อปรับหน้าตาของแบบฟอร์ม
-const DEFAULT_LETTER_TEMPLATE_DOC_ID = '1JDYOo9TaD2K8Nt4qKLJq2vNC20lhj-uNtOogGsyrNf0';
+const DEFAULT_LETTER_TEMPLATE_DOC_ID = '1WCXNjjx5oNF2KfljK3XXzoNw71LRWRusTI60rBrYCPQ';
 const LETTER_NO_FIXED_PREFIX = 'ศธ 04293.43/';
 
 /**

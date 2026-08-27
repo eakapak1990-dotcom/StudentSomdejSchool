@@ -282,7 +282,7 @@ function api_updateStudent_(token, studentId, payload) {
     };
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === studentId) {
+      if (sameId_(data[i][colId], studentId)) {
         const before = JSON.stringify(rowToObject_(headers, data[i]));
         Object.keys(studentFieldMap).forEach(key => {
           if (payload[key] !== undefined) {
@@ -320,7 +320,7 @@ function api_updateStudent_(token, studentId, payload) {
       let parentFound = false;
 
       for (let i = 1; i < pData.length; i++) {
-        if (pData[i][pColId] === studentId) {
+        if (sameId_(pData[i][pColId], studentId)) {
           Object.keys(parentFieldMap).forEach(key => {
             if (payload[key] !== undefined) {
               const col = pHeaders.indexOf(parentFieldMap[key]);
@@ -369,7 +369,7 @@ function api_deleteStudent_(token, studentId) {
     const colId = data[0].indexOf('StudentID');
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === studentId) {
+      if (sameId_(data[i][colId], studentId)) {
         const before = JSON.stringify(rowToObject_(data[0], data[i]));
         sheet.deleteRow(i + 1);
 
@@ -464,13 +464,21 @@ function rowToObject_(headers, row) {
   return obj;
 }
 
+/**
+ * เทียบรหัสนักเรียนแบบทนชนิดข้อมูล (String + trim ทั้งสองฝั่ง)
+ * — กันกรณี Google Sheets แปลง "123456" เป็นตัวเลขแล้วค้นหา/เปรียบเทียบไม่เจอ
+ */
+function sameId_(a, b) {
+  return String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim();
+}
+
 function findStudentById_(studentId) {
   const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const colId = headers.indexOf('StudentID');
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] === studentId) return rowToObject_(headers, data[i]);
+    if (sameId_(data[i][colId], studentId)) return rowToObject_(headers, data[i]);
   }
   return null;
 }
@@ -481,7 +489,7 @@ function findParentByStudentId_(studentId) {
   const headers = data[0];
   const colId = headers.indexOf('StudentID');
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] === studentId) return rowToObject_(headers, data[i]);
+    if (sameId_(data[i][colId], studentId)) return rowToObject_(headers, data[i]);
   }
   return null;
 }
@@ -504,7 +512,7 @@ function getStudentScoreSummary_(studentId, currentScore) {
   let totalDeducted = 0;
   let deductedCount = 0;
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] !== studentId) continue;
+    if (!sameId_(data[i][colId], studentId)) continue;
     const type = data[i][colType];
     const amount = Number(data[i][colAmount]) || 0;
     if (type === 'deduct') {
@@ -638,7 +646,7 @@ function getStudentTimeline_(studentId) {
   const colId = headers.indexOf('StudentID');
   const events = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][colId] === studentId) events.push(rowToObject_(headers, data[i]));
+    if (sameId_(data[i][colId], studentId)) events.push(rowToObject_(headers, data[i]));
   }
   events.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
   return events;
@@ -658,7 +666,7 @@ function deleteRelatedRows_(sheetName, studentId) {
 
     // วน reverse เพื่อลบจากล่างขึ้นบน
     for (let i = data.length - 1; i >= 1; i--) {
-      if (data[i][colId] === studentId) {
+      if (sameId_(data[i][colId], studentId)) {
         sheet.deleteRow(i + 1);
       }
     }
@@ -732,7 +740,12 @@ function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt
     }
 
     const photoFile = folder.createFile(blob);
-    photoFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    try {
+      photoFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e) {
+      // บางองค์กรจำกัดการแชร์แบบสาธารณะ — รูปยังใช้ได้ผ่านระบบ (apiGetStudentPhoto) ให้บันทึก PhotoFileID ต่อไป
+      Logger.log('setSharing ไม่สำเร็จ (ข้าม): ' + e.message);
+    }
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
     const data = sheet.getDataRange().getValues();
@@ -741,7 +754,7 @@ function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt
     const colPhoto = headers.indexOf('PhotoFileID');
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === studentId) {
+      if (sameId_(data[i][colId], studentId)) {
         sheet.getRange(i + 1, colPhoto + 1).setValue(photoFile.getId());
         sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
         break;
@@ -762,4 +775,26 @@ function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt
 // ============================================
 function apiUploadStudentPhoto(token, studentId, base64Data, mimeType, fileExt) {
   return api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt);
+}
+
+/**
+ * ดึงรูปนักเรียนเป็น base64 ผ่านระบบ (ใช้เมื่อ thumbnail สาธารณะเข้าถึงไม่ได้
+ * เช่น องค์กรจำกัดการแชร์แบบสาธารณะ) — ตรวจสอบ session ก่อนทุกครั้ง
+ */
+function apiGetStudentPhoto(token, fileId) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    const id = String(fileId || '').trim();
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return { success: false, message: 'File ID ไม่ถูกต้อง' };
+    const blob = DriveApp.getFileById(id).getBlob();
+    return {
+      success: true,
+      b64: Utilities.base64Encode(blob.getBytes()),
+      type: blob.getContentType()
+    };
+  } catch (err) {
+    Logger.log('apiGetStudentPhoto error: ' + err.message);
+    return { success: false, message: 'ไม่สามารถอ่านรูปภาพได้' };
+  }
 }

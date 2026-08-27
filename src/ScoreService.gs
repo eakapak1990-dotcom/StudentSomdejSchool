@@ -41,7 +41,7 @@ function api_addScore_(token, payload) {
 
     let rowIndex = -1, oldScore = 0, phase = '', studentName = '';
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === studentId) {
+      if (sameId_(data[i][colId], studentId)) {
         rowIndex = i;
         oldScore = Number(data[i][colScore]) || 0;
         phase = data[i][colPhase];
@@ -150,7 +150,7 @@ function api_getScoreHistory_(token, filters) {
     let logs = logData.slice(1).map(row => rowToObject_(logHeaders, row));
 
     if (filters.studentId) {
-      logs = logs.filter(l => l.StudentID === filters.studentId);
+      logs = logs.filter(l => sameId_(l.StudentID, filters.studentId));
     }
 
     logs.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));

@@ -1015,19 +1015,38 @@
       didOpen: () => Swal.showLoading(),
     });
 
+    // Timeout ป้องกันค้าง loading ตลอดกาล (15 วินาที)
+    var _editTimeout = setTimeout(function() {
+      Swal.close();
+      Swal.fire({
+        icon: "warning",
+        title: "โหลดข้อมูลช้าเกินไป",
+        text: "ระบบใช้เวลาโหลดนาน กรุณาลองใหม่อีกครั้ง หรือตรวจสอบการเชื่อมต่ออินเทอร์เน็ต",
+      });
+    }, 15000);
+
     google.script.run
       .withSuccessHandler(function (res) {
+        clearTimeout(_editTimeout);
         Swal.close();
-        if (!res.success) {
+        if (!res || !res.success) {
           Swal.fire({
             icon: "error",
             title: "โหลดข้อมูลไม่สำเร็จ",
-            text: res.message,
+            text: (res && res.message) || "ไม่ได้รับข้อมูลจากระบบ",
           });
           return;
         }
-        const st = res.student;
-        const p = res.parent || {};
+        var st = res.student;
+        var p = res.parent || {};
+        if (!st) {
+          Swal.fire({
+            icon: "error",
+            title: "ไม่พบข้อมูลนักเรียน",
+            text: "รหัสนักเรียน " + studentId + " ไม่มีในระบบ",
+          });
+          return;
+        }
 
         document.getElementById("studentModalTitle").textContent =
           "แก้ไขข้อมูลนักเรียน";
@@ -1090,11 +1109,12 @@
         new bootstrap.Modal(document.getElementById("studentModal")).show();
       })
       .withFailureHandler(function (err) {
+        clearTimeout(_editTimeout);
         Swal.close();
         Swal.fire({
           icon: "error",
           title: "เกิดข้อผิดพลาด",
-          text: err.message,
+          text: err.message || "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้",
         });
       })
       .apiGetStudentDetail(getToken(), studentId);

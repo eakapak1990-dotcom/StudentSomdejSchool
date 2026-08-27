@@ -95,17 +95,27 @@ const CONFIG = {
 }; // <-- ย้าย }; มาปิด Object CONFIG ที่ตรงนี้แทน
 
 // ============================================================
-// Helper Functions
+// Helper Functions + Performance Cache Layer
 // ============================================================
 
 /**
- * เปิด Spreadsheet หลักของระบบ
+ * In-memory cache — อยู่ตลอด request lifecycle (ไม่ต้องมี TTL ซับซ้อน)
+ * ทุก write operation ต้องเรียก invalidateAllCache_() หลังเขียน
+ */
+var _cachedSpreadsheet = null;
+var _cachedSheetData = {};   // { sheetName: { headers: [], rows: [] } }
+var _cachedConfigMap = null; // { key: value } สำหรับ Config sheet
+
+/**
+ * เปิด Spreadsheet หลักของระบบ (cached — ไม่เปิดใหม่ทุกครั้ง)
  */
 function getSpreadsheet() {
+  if (_cachedSpreadsheet) return _cachedSpreadsheet;
   if (!CONFIG.SPREADSHEET_ID) {
     throw new Error('กรุณาตั้งค่า SPREADSHEET_ID ใน Config.gs');
   }
-  return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  _cachedSpreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  return _cachedSpreadsheet;
 }
 
 /**
@@ -118,4 +128,93 @@ function getSheet(sheetName) {
     throw new Error(`ไม่พบ Sheet ชื่อ: ${sheetName}`);
   }
   return sheet;
+}
+
+/**
+ * ดึงข้อมูลทั้งชีตเป็น { headers: [], rows: [] } แบบ cached
+ * — ใช้แทน sheet.getDataRange().getValues() ที่เรียกซ้ำๆ
+ * — rows เป็น array of arrays (ไม่ convert เป็น object เพื่อความเร็ว)
+ */
+function getCachedSheetData_(sheetName) {
+  if (_cachedSheetData[sheetName]) return _cachedSheetData[sheetName];
+  const sheet = getSheet(sheetName);
+  const data = sheet.getDataRange().getValues();
+  const result = { headers: data[0] || [], rows: data.slice(1) };
+  _cachedSheetData[sheetName] = result;
+  return result;
+}
+
+/**
+ * ดึงข้อมูล Config sheet เป็น Map { key: value } — cached
+ * ใช้แทน getConfigValue_() ที่อ่านทั้งชีตทุกครั้ง
+ */
+function getCachedConfigMap_() {
+  if (_cachedConfigMap) return _cachedConfigMap;
+  _cachedConfigMap = {};
+  try {
+    const data = getCachedSheetData_(CONFIG.SHEET_NAMES.CONFIG);
+    for (let i = 0; i < data.rows.length; i++) {
+      const key = data.rows[i][0];
+      if (key) _cachedConfigMap[key] = data.rows[i][1];
+    }
+  } catch (e) {
+    // ถ้า Config sheet ไม่มี ให้คืน object ว่าง
+  }
+  return _cachedConfigMap;
+}
+
+/**
+ * อ่านค่าจาก Config sheet (cached version)
+ */
+function getConfigValue_(key) {
+  const map = getCachedConfigMap_();
+  return map[key] !== undefined ? map[key] : null;
+}
+
+/**
+ * เขียนค่าลง Config sheet + clear cache ทันที
+ */
+function setConfigValue_(key, value, description) {
+  const sheet = getSheet(CONFIG.SHEET_NAMES.CONFIG);
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      // clear config cache ทันทีหลังเขียน
+      _cachedConfigMap = null;
+      if (_cachedSheetData[CONFIG.SHEET_NAMES.CONFIG]) {
+        delete _cachedSheetData[CONFIG.SHEET_NAMES.CONFIG];
+      }
+      return;
+    }
+  }
+  sheet.appendRow([key, value, description || '']);
+  // clear cache หลัง append
+  _cachedConfigMap = null;
+  if (_cachedSheetData[CONFIG.SHEET_NAMES.CONFIG]) {
+    delete _cachedSheetData[CONFIG.SHEET_NAMES.CONFIG];
+  }
+}
+
+/**
+ * ล้าง cache ทั้งหมด — เรียกหลังทุก write operation
+ * (เพิ่ม/แก้ไข/ลบ ข้อมูลใน Sheets)
+ */
+function invalidateAllCache_() {
+  _cachedSpreadsheet = null;
+  _cachedSheetData = {};
+  _cachedConfigMap = null;
+}
+
+/**
+ * ล้าง cache เฉพาะชีตที่ระบุ — เรียกหลังเขียนข้อมูลชีตนั้นๆ
+ */
+function invalidateSheetCache_(sheetName) {
+  if (_cachedSheetData[sheetName]) {
+    delete _cachedSheetData[sheetName];
+  }
+  // ถ้าแก้ Config ต้อง clear config map ด้วย
+  if (sheetName === CONFIG.SHEET_NAMES.CONFIG) {
+    _cachedConfigMap = null;
+  }
 }

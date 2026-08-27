@@ -29,9 +29,8 @@ function api_addScore_(token, payload) {
     const lock = LockService.getScriptLock();
     lock.waitLock(30000);
     try {
-      const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+      const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const headers = cached.headers;
     const colId = headers.indexOf('StudentID');
     const colScore = headers.indexOf('CurrentScore');
     const colPhase = headers.indexOf('EducationPhase');
@@ -40,12 +39,12 @@ function api_addScore_(token, payload) {
     const colPrefix = headers.indexOf('Prefix');
 
     let rowIndex = -1, oldScore = 0, phase = '', studentName = '';
-    for (let i = 1; i < data.length; i++) {
-      if (sameId_(data[i][colId], studentId)) {
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (sameId_(cached.rows[i][colId], studentId)) {
         rowIndex = i;
-        oldScore = Number(data[i][colScore]) || 0;
-        phase = data[i][colPhase];
-        studentName = (data[i][colPrefix] || '') + (data[i][colFirstName] || '') + ' ' + (data[i][colLastName] || '');
+        oldScore = Number(cached.rows[i][colScore]) || 0;
+        phase = cached.rows[i][colPhase];
+        studentName = (cached.rows[i][colPrefix] || '') + (cached.rows[i][colFirstName] || '') + ' ' + (cached.rows[i][colLastName] || '');
         break;
       }
     }
@@ -57,8 +56,10 @@ function api_addScore_(token, payload) {
       }
 
         // อัปเดตคะแนนใน Sheet Students
-      sheet.getRange(rowIndex + 1, colScore + 1).setValue(newScore);
-      sheet.getRange(rowIndex + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+      const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
+      sheet.getRange(rowIndex + 2, colScore + 1).setValue(newScore);
+      sheet.getRange(rowIndex + 2, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+      invalidateSheetCache_(CONFIG.SHEET_NAMES.STUDENTS);
 
       // วัน/เวลาที่เกิดเหตุ (ไม่บังคับ) — ใช้ย้อนรอยเหตุการณ์ เช่น เหตุเกิดก่อนวันที่บันทึก
       const eventTime = String(payload.eventTime || '').trim();
@@ -144,10 +145,8 @@ function api_getScoreHistory_(token, filters) {
     filters = filters || {};
     const limit = filters.limit || 50;
 
-    const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
-    const logData = logSheet.getDataRange().getValues();
-    const logHeaders = logData[0];
-    let logs = logData.slice(1).map(row => rowToObject_(logHeaders, row));
+    const logCached = getCachedSheetData_(CONFIG.SHEET_NAMES.SCORE_LOGS);
+    let logs = logCached.rows.map(row => rowToObject_(logCached.headers, row));
 
     if (filters.studentId) {
       logs = logs.filter(l => sameId_(l.StudentID, filters.studentId));
@@ -157,12 +156,10 @@ function api_getScoreHistory_(token, filters) {
     logs = logs.slice(0, limit);
 
     // เติมชื่อนักเรียนให้แต่ละ log
-    const studentSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studentData = studentSheet.getDataRange().getValues();
-    const studentHeaders = studentData[0];
+    const studentCached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
     const nameMap = {};
-    studentData.slice(1).forEach(row => {
-      const obj = rowToObject_(studentHeaders, row);
+    studentCached.rows.forEach(row => {
+      const obj = rowToObject_(studentCached.headers, row);
       nameMap[obj.StudentID] = (obj.Prefix || '') + (obj.FirstName || '') + ' ' + (obj.LastName || '');
     });
 

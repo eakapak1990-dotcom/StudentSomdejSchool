@@ -325,25 +325,48 @@ function thaiTimestampText_(date) {
 // ============================================================
 
 function getAllLineBindings_() {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const colBinding = headers.indexOf('BindingID');
-  const colId = headers.indexOf('StudentID');
-  const colLine = headers.indexOf('LineUserID');
-  const colName = headers.indexOf('ParentDisplayName');
-  const colBoundAt = headers.indexOf('BoundAt');
-  const colActive = headers.indexOf('Active');
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+  const colBinding = cached.headers.indexOf('BindingID');
+  const colId = cached.headers.indexOf('StudentID');
+  const colLine = cached.headers.indexOf('LineUserID');
+  const colName = cached.headers.indexOf('ParentDisplayName');
+  const colBoundAt = cached.headers.indexOf('BoundAt');
+  const colActive = cached.headers.indexOf('Active');
+
+  // Preload students map — ป้องกัน N+1 query (ไม่ต้อง findStudentById_ ทีละคน)
+  const studentCached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+  const studentColId = studentCached.headers.indexOf('StudentID');
+  const studentColGrade = studentCached.headers.indexOf('Grade');
+  const studentColRoom = studentCached.headers.indexOf('Room');
+  const studentColPrefix = studentCached.headers.indexOf('Prefix');
+  const studentColFirstName = studentCached.headers.indexOf('FirstName');
+  const studentColLastName = studentCached.headers.indexOf('LastName');
+  const studentMap = {};
+  studentCached.rows.forEach(function(r) {
+    const id = String(r[studentColId] || '').trim();
+    if (id) {
+      studentMap[id] = {
+        Grade: r[studentColGrade] || '',
+        Room: r[studentColRoom] || '',
+        Prefix: r[studentColPrefix] || '',
+        FirstName: r[studentColFirstName] || '',
+        LastName: r[studentColLastName] || ''
+      };
+    }
+  });
+
   const out = [];
-  for (let i = 1; i < data.length; i++) {
-    const st = data[i][colId] ? findStudentById_(String(data[i][colId])) : null;
+  for (let i = 0; i < cached.rows.length; i++) {
+    const row = cached.rows[i];
+    const sid = String(row[colId] || '').trim();
+    const st = sid ? studentMap[sid] : null;
     out.push({
-      BindingID: data[i][colBinding],
-      StudentID: data[i][colId],
-      LineUserID: data[i][colLine],
-      ParentDisplayName: data[i][colName] || 'ผู้ปกครอง',
-      BoundAt: data[i][colBoundAt] ? thaiTimestampText_(data[i][colBoundAt]) : '-',
-      Active: data[i][colActive],
+      BindingID: row[colBinding],
+      StudentID: row[colId],
+      LineUserID: row[colLine],
+      ParentDisplayName: row[colName] || 'ผู้ปกครอง',
+      BoundAt: row[colBoundAt] ? thaiTimestampText_(row[colBoundAt]) : '-',
+      Active: row[colActive],
       StudentName: st ? getStudentDisplayName_(st) : '(ไม่พบนักเรียน)',
       StudentClass: st ? (st.Grade || '-') + '/' + (st.Room || '-') : '-'
     });
@@ -353,12 +376,10 @@ function getAllLineBindings_() {
 }
 
 function countLineLinkedStudents_() {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const colLine = headers.indexOf('LineLinked');
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+  const colLine = cached.headers.indexOf('LineLinked');
   if (colLine === -1) return 0;
-  return data.slice(1).filter(function (r) { return r[colLine] === true; }).length;
+  return cached.rows.filter(function (r) { return r[colLine] === true; }).length;
 }
 
 function api_getLineSettings_(token) {

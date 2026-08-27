@@ -163,22 +163,18 @@ function api_getLetters_(token, filters) {
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
 
     filters = filters || {};
-    const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    let letters = data.slice(1).map(row => rowToObject_(headers, row));
+    const letterCached = getCachedSheetData_(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
+    let letters = letterCached.rows.map(row => rowToObject_(letterCached.headers, row));
 
     if (filters.status && filters.status !== 'all') {
       letters = letters.filter(l => l.Status === filters.status);
     }
     letters.sort((a, b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
 
-    const studentSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studentData = studentSheet.getDataRange().getValues();
-    const studentHeaders = studentData[0];
+    const studentCached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
     const studentMap = {};
-    studentData.slice(1).forEach(row => {
-      const obj = rowToObject_(studentHeaders, row);
+    studentCached.rows.forEach(row => {
+      const obj = rowToObject_(studentCached.headers, row);
       studentMap[obj.StudentID] = obj;
     });
     letters.forEach(l => {
@@ -186,8 +182,8 @@ function api_getLetters_(token, filters) {
       l.StudentName = st ? (st.Prefix || '') + (st.FirstName || '') + ' ' + (st.LastName || '') : l.StudentID;
     });
 
-    const colStatus = headers.indexOf('Status');
-    const allRows = data.slice(1);
+    const colStatus = letterCached.headers.indexOf('Status');
+    const allRows = letterCached.rows;
     const draftCount = allRows.filter(r => r[colStatus] === 'draft').length;
     const confirmedCount = allRows.filter(r => r[colStatus] === 'confirmed').length;
 

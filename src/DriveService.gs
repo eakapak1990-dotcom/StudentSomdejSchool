@@ -47,26 +47,3 @@ function getLetterPreviewFolder_() {
   return getOrCreateSubfolder_(root, 'ตัวอย่างหนังสือเชิญ (Preview)');
 }
 
-/**
- * อ่าน/เขียนค่าตั้งค่าระบบจาก Sheet Config (key-value)
- */
-function getConfigValue_(key) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.CONFIG);
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === key) return data[i][1];
-  }
-  return null;
-}
-
-function setConfigValue_(key, value, description) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.CONFIG);
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === key) {
-      sheet.getRange(i + 1, 2).setValue(value);
-      return;
-    }
-  }
-  sheet.appendRow([key, value, description || '']);
-}

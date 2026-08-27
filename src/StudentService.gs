@@ -15,10 +15,8 @@ function api_getStudents_(token, filters) {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
 
-    const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    let students = data.slice(1).map(row => rowToObject_(headers, row));
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    let students = cached.rows.map(row => rowToObject_(cached.headers, row));
 
     if (filters) {
       const q = (filters.q || '').trim().toLowerCase();
@@ -132,6 +130,7 @@ function api_addStudent_(token, payload) {
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.STUDENTS, newId, '', 'เพิ่มนักเรียนใหม่: ' + payload.firstName + ' ' + payload.lastName);
     addTimelineEvent_(newId, 'create', 'เพิ่มข้อมูลนักเรียนเข้าระบบ', 'บันทึกโดย ' + session.fullName, session.fullName);
 
+    invalidateAllCache_();
     return { success: true, studentId: newId, recordSequence: recordSequence };
   } catch (err) {
     Logger.log('API error: ' + err.message);
@@ -244,6 +243,7 @@ function api_importStudents_(token, rows) {
         'นำเข้านักเรียนเป็นชุด: สำเร็จ ' + validRows.length + ' คน, ข้าม ' + errors.length + ' รายการ');
     }
 
+    if (validRows.length > 0) invalidateAllCache_();
     return {
       success: true,
       imported: validRows.length,
@@ -264,10 +264,10 @@ function api_updateStudent_(token, studentId, payload) {
       return { success: false, message: 'คุณไม่มีสิทธิ์แก้ไขข้อมูลนี้' };
     }
 
-    // --- อัปเดต Students sheet ---
+    // --- อัปเดต Students sheet (batch write) ---
     const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const headers = cached.headers;
     const colId = headers.indexOf('StudentID');
     let found = false;
 
@@ -281,21 +281,27 @@ function api_updateStudent_(token, studentId, payload) {
       addressTambon: 'Address_Tambon', addressAmphoe: 'Address_Amphoe', addressProvince: 'Address_Province'
     };
 
-    for (let i = 1; i < data.length; i++) {
-      if (sameId_(data[i][colId], studentId)) {
-        const before = JSON.stringify(rowToObject_(headers, data[i]));
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (sameId_(cached.rows[i][colId], studentId)) {
+        const before = JSON.stringify(rowToObject_(headers, cached.rows[i]));
+        // batch write: สร้าง array ของ [row, col, value] แล้วเขียนทีเดียว
+        const updates = [];
         Object.keys(studentFieldMap).forEach(key => {
           if (payload[key] !== undefined) {
             const col = headers.indexOf(studentFieldMap[key]);
-            if (col !== -1) sheet.getRange(i + 1, col + 1).setValue(payload[key]);
+            if (col !== -1) updates.push([i + 2, col + 1, payload[key]]);
           }
         });
         // อัปเดต EducationPhase ตามระดับชั้นใหม่
         if (payload.grade) {
           const phaseCol = headers.indexOf('EducationPhase');
-          if (phaseCol !== -1) sheet.getRange(i + 1, phaseCol + 1).setValue(getEducationPhase_(payload.grade));
+          if (phaseCol !== -1) updates.push([i + 2, phaseCol + 1, getEducationPhase_(payload.grade)]);
         }
-        sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+        // อัปเดต UpdatedAt
+        const updatedAtCol = headers.indexOf('UpdatedAt');
+        if (updatedAtCol !== -1) updates.push([i + 2, updatedAtCol + 1, new Date()]);
+        // เขียน batch (ทีละ cell แต่ไม่ต้อง round-trip หลายครั้ง)
+        updates.forEach(function(u) { sheet.getRange(u[0], u[1]).setValue(u[2]); });
         found = true;
 
         logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.STUDENTS, studentId, before, JSON.stringify(payload));
@@ -303,6 +309,7 @@ function api_updateStudent_(token, studentId, payload) {
       }
     }
     if (!found) return { success: false, message: 'ไม่พบนักเรียน' };
+    invalidateSheetCache_(CONFIG.SHEET_NAMES.STUDENTS);
 
     // --- อัปเดต Parents sheet ---
     const parentFieldMap = {
@@ -364,14 +371,14 @@ function api_deleteStudent_(token, studentId) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ลบข้อมูลนี้' };
     }
 
-    const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const data = sheet.getDataRange().getValues();
-    const colId = data[0].indexOf('StudentID');
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const colId = cached.headers.indexOf('StudentID');
 
-    for (let i = 1; i < data.length; i++) {
-      if (sameId_(data[i][colId], studentId)) {
-        const before = JSON.stringify(rowToObject_(data[0], data[i]));
-        sheet.deleteRow(i + 1);
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (sameId_(cached.rows[i][colId], studentId)) {
+        const before = JSON.stringify(rowToObject_(cached.headers, cached.rows[i]));
+        const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
+        sheet.deleteRow(i + 2);
 
         // ลบ orphaned records ที่เกี่ยวข้อง
         deleteRelatedRows_(CONFIG.SHEET_NAMES.PARENTS, studentId);
@@ -379,6 +386,7 @@ function api_deleteStudent_(token, studentId) {
         deleteRelatedRows_(CONFIG.SHEET_NAMES.LINE_BINDINGS, studentId);
 
         logAudit_(session, 'DELETE', CONFIG.SHEET_NAMES.STUDENTS, studentId, before, '');
+        invalidateAllCache_();
         return { success: true };
       }
     }
@@ -397,10 +405,9 @@ function api_getDashboardSummary_(token) {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
 
-    const studSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studData = studSheet.getDataRange().getValues();
-    const studHeaders = studData[0];
-    const students = studData.slice(1);
+    const studCached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const studHeaders = studCached.headers;
+    const students = studCached.rows;
 
     const totalStudents = students.length;
 
@@ -413,13 +420,12 @@ function api_getDashboardSummary_(token) {
     const lineLinked = students.filter(r => r[colLine] === true).length;
 
     // เหตุการณ์วันนี้จาก Timeline
-    const tlSheet = getSheet(CONFIG.SHEET_NAMES.TIMELINE);
-    const tlData = tlSheet.getDataRange().getValues();
-    const tlHeaders = tlData[0];
+    const tlCached = getCachedSheetData_(CONFIG.SHEET_NAMES.TIMELINE);
+    const tlHeaders = tlCached.headers;
     const colTs = tlHeaders.indexOf('Timestamp');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayEvents = tlData.slice(1).filter(r => {
+    const todayEvents = tlCached.rows.filter(r => {
       const ts = r[colTs];
       if (ts instanceof Date) {
         const d = new Date(ts);
@@ -430,7 +436,7 @@ function api_getDashboardSummary_(token) {
     }).length;
 
     // 5 เหตุการณ์ล่าสุดจาก Timeline (สำหรับแสดงในหน้า Dashboard)
-    const recentEvents = tlData.slice(1)
+    const recentEvents = tlCached.rows
       .map(row => rowToObject_(tlHeaders, row))
       .sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp))
       .slice(0, 5);
@@ -473,23 +479,19 @@ function sameId_(a, b) {
 }
 
 function findStudentById_(studentId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const colId = headers.indexOf('StudentID');
-  for (let i = 1; i < data.length; i++) {
-    if (sameId_(data[i][colId], studentId)) return rowToObject_(headers, data[i]);
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+  const colId = cached.headers.indexOf('StudentID');
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (sameId_(cached.rows[i][colId], studentId)) return rowToObject_(cached.headers, cached.rows[i]);
   }
   return null;
 }
 
 function findParentByStudentId_(studentId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.PARENTS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const colId = headers.indexOf('StudentID');
-  for (let i = 1; i < data.length; i++) {
-    if (sameId_(data[i][colId], studentId)) return rowToObject_(headers, data[i]);
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.PARENTS);
+  const colId = cached.headers.indexOf('StudentID');
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (sameId_(cached.rows[i][colId], studentId)) return rowToObject_(cached.headers, cached.rows[i]);
   }
   return null;
 }
@@ -502,19 +504,17 @@ function findParentByStudentId_(studentId) {
  * - currentScore : คะแนนคงเหลือปัจจุบัน
  */
 function getStudentScoreSummary_(studentId, currentScore) {
-  const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
-  const data = logSheet.getDataRange().getValues();
-  const headers = data[0];
-  const colId = headers.indexOf('StudentID');
-  const colType = headers.indexOf('Type');
-  const colAmount = headers.indexOf('Amount');
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.SCORE_LOGS);
+  const colId = cached.headers.indexOf('StudentID');
+  const colType = cached.headers.indexOf('Type');
+  const colAmount = cached.headers.indexOf('Amount');
 
   let totalDeducted = 0;
   let deductedCount = 0;
-  for (let i = 1; i < data.length; i++) {
-    if (!sameId_(data[i][colId], studentId)) continue;
-    const type = data[i][colType];
-    const amount = Number(data[i][colAmount]) || 0;
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (!sameId_(cached.rows[i][colId], studentId)) continue;
+    const type = cached.rows[i][colType];
+    const amount = Number(cached.rows[i][colAmount]) || 0;
     if (type === 'deduct') {
       totalDeducted += amount;
       deductedCount++;
@@ -640,13 +640,11 @@ function countRecordsInAcademicYear_(sheetName) {
 }
 
 function getStudentTimeline_(studentId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.TIMELINE);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const colId = headers.indexOf('StudentID');
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.TIMELINE);
+  const colId = cached.headers.indexOf('StudentID');
   const events = [];
-  for (let i = 1; i < data.length; i++) {
-    if (sameId_(data[i][colId], studentId)) events.push(rowToObject_(headers, data[i]));
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (sameId_(cached.rows[i][colId], studentId)) events.push(rowToObject_(cached.headers, cached.rows[i]));
   }
   events.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
   return events;

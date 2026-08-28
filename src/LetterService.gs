@@ -129,7 +129,7 @@ function api_createLetter_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์สร้างหนังสือเชิญ' };
     }
     if (!payload.studentId) return { success: false, message: 'กรุณาเลือกนักเรียน' };
@@ -202,7 +202,7 @@ function api_previewLetter_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์พรีวิวหนังสือเชิญ' };
     }
     if (!payload.studentId || !payload.detail || !payload.appointmentDate || !payload.appointmentTime || !payload.letterNoSuffix) {
@@ -273,7 +273,7 @@ function api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, l
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ยืนยันออกเอกสาร' };
     }
 

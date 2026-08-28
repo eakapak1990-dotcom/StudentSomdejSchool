@@ -104,7 +104,7 @@
         คำร้องออกนอกโรงเรียน</a>
       <a class="nav-link-custom" data-view="letters" data-perm="editDelete"><i class="bi bi-envelope-paper-fill"></i>
         หนังสือเชิญผู้ปกครอง</a>
-      <a class="nav-link-custom" data-view="reports"><i class="bi bi-bar-chart-line-fill"></i>
+      <a class="nav-link-custom" data-view="reports" data-perm="score"><i class="bi bi-bar-chart-line-fill"></i>
         รายงาน & สถิติ</a>
 
       <div class="nav-section-title">ระบบ</div>
@@ -713,6 +713,7 @@
                 <th>ชื่อผู้ใช้</th>
                 <th>ชื่อ-นามสกุล</th>
                 <th>บทบาท</th>
+                <th>สิทธิ์</th>
                 <th>สถานะ</th>
                 <th>เข้าใช้งานล่าสุด</th>
                 <th class="text-end">การดำเนินการ</th>
@@ -720,7 +721,7 @@
             </thead>
             <tbody id="userTableBody">
               <tr>
-                <td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td>
+                <td colspan="7" class="text-center text-secondary py-4">กำลังโหลด...</td>
               </tr>
             </tbody>
           </table>
@@ -1049,11 +1050,74 @@
                 <input type="text" class="form-control" id="um_password" placeholder="อย่างน้อย 8 ตัวอักษร">
                 <div class="text-secondary small mt-1">แนะนำให้ผู้ใช้เปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก</div>
               </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">สิทธิ์การเข้าถึงข้อมูล <span class="text-danger">*</span></label>
+                <div class="form-check ms-2 mt-2">
+                  <input class="form-check-input um_perm" type="checkbox" id="um_perm_score" value="score">
+                  <label class="form-check-label small" for="um_perm_score">บันทึกคะแนน / ดูข้อมูลนักเรียน</label>
+                </div>
+                <div class="form-check ms-2">
+                  <input class="form-check-input um_perm" type="checkbox" id="um_perm_approveLeave" value="approveLeave">
+                  <label class="form-check-label small" for="um_perm_approveLeave">พิจารณาคำร้องออกนอกโรงเรียน</label>
+                </div>
+                <div class="form-check ms-2">
+                  <input class="form-check-input um_perm" type="checkbox" id="um_perm_editDelete" value="editDelete">
+                  <label class="form-check-label small" for="um_perm_editDelete">แก้ไข/ลบข้อมูล + หนังสือเชิญ + การแจ้งเตือน LINE</label>
+                </div>
+                <div class="form-check ms-2">
+                  <input class="form-check-input um_perm" type="checkbox" id="um_perm_manageSystem" value="manageSystem">
+                  <label class="form-check-label small" for="um_perm_manageSystem">จัดการระบบ / จัดการผู้ใช้งาน</label>
+                </div>
+                <div class="text-secondary small mt-1">เลือกสิทธิ์ที่ผู้ใช้คนนี้สามารถเข้าถึงได้ (ไม่ผูกกับบทบาท)</div>
+              </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
               <button class="btn btn-navy" onclick="submitAddUser()"><i class="bi bi-save2 me-1"></i>
                 เพิ่มผู้ใช้งาน</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ MODAL: แก้ไขสิทธิ์ผู้ใช้ ============ -->
+      <div class="modal fade" id="userPermModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">แก้ไขสิทธิ์การเข้าถึงข้อมูล</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">ผู้ใช้</label>
+                <input class="form-control" id="upm_userName" readonly>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">สิทธิ์การเข้าถึงข้อมูล</label>
+                <div class="form-check ms-2 mt-2">
+                  <input class="form-check-input upm_perm" type="checkbox" id="upm_perm_score" value="score">
+                  <label class="form-check-label small" for="upm_perm_score">บันทึกคะแนน / ดูข้อมูลนักเรียน</label>
+                </div>
+                <div class="form-check ms-2">
+                  <input class="form-check-input upm_perm" type="checkbox" id="upm_perm_approveLeave" value="approveLeave">
+                  <label class="form-check-label small" for="upm_perm_approveLeave">พิจารณาคำร้องออกนอกโรงเรียน</label>
+                </div>
+                <div class="form-check ms-2">
+                  <input class="form-check-input upm_perm" type="checkbox" id="upm_perm_editDelete" value="editDelete">
+                  <label class="form-check-label small" for="upm_perm_editDelete">แก้ไข/ลบข้อมูล + หนังสือเชิญ + การแจ้งเตือน LINE</label>
+                </div>
+                <div class="form-check ms-2">
+                  <input class="form-check-input upm_perm" type="checkbox" id="upm_perm_manageSystem" value="manageSystem">
+                  <label class="form-check-label small" for="upm_perm_manageSystem">จัดการระบบ / จัดการผู้ใช้งาน</label>
+                </div>
+                <div class="text-secondary small mt-1">การเปลี่ยนแปลงจะบังคับให้ผู้ใช้เข้าสู่ระบบใหม่ทันที</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+              <button class="btn btn-navy" onclick="submitEditPermissions()"><i class="bi bi-save2 me-1"></i>
+                บันทึกสิทธิ์</button>
             </div>
           </div>
         </div>

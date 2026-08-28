@@ -2688,13 +2688,13 @@
   /* ================= USER MANAGEMENT MODULE ================= */
   function loadUsers() {
     document.getElementById("userTableBody").innerHTML =
-      '<tr><td colspan="6" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
+      '<tr><td colspan="7" class="text-center text-secondary py-4">กำลังโหลด...</td></tr>';
 
     google.script.run
       .withSuccessHandler((res) => {
         if (!res.success) {
           document.getElementById("userTableBody").innerHTML =
-            `<tr><td colspan="6" class="text-center text-secondary py-4">${res.message}</td></tr>`;
+            `<tr><td colspan="7" class="text-center text-secondary py-4">${res.message}</td></tr>`;
           return;
         }
         const rows = res.users
@@ -2706,29 +2706,40 @@
             const lastLogin = u.LastLogin
               ? toThaiDate(u.LastLogin, true)
               : "ยังไม่เคยเข้าใช้งาน";
+            const perms = u.Permissions || {};
+            const permBadges = [
+              perms.score ? '<span class="badge-soft badge-info me-1">คะแนน</span>' : '',
+              perms.approveLeave ? '<span class="badge-soft badge-info me-1">คำร้อง</span>' : '',
+              perms.editDelete ? '<span class="badge-soft badge-info me-1">แก้ไข/ลบ</span>' : '',
+              perms.manageSystem ? '<span class="badge-soft badge-info me-1">จัดการระบบ</span>' : '',
+            ].join('') || '<span class="text-secondary small">ไม่มีสิทธิ์</span>';
             const toggleBtn = isSelf
               ? '<span class="text-secondary small">บัญชีของฉัน</span>'
               : u.Active
                 ? `<button class="btn btn-sm btn-outline-danger" onclick="toggleUser('${u.UserID}', false, '${u.FullName}')"><i class="bi bi-slash-circle me-1"></i>ระงับ</button>`
                 : `<button class="btn btn-sm btn-outline-success" onclick="toggleUser('${u.UserID}', true, '${u.FullName}')"><i class="bi bi-check-circle me-1"></i>เปิดใช้งาน</button>`;
+            const editPermBtn = isSelf
+              ? ''
+              : `<button class="btn btn-sm btn-outline-primary" onclick="openEditPermissionsModal('${u.UserID}', '${u.FullName}', ${JSON.stringify(perms).replace(/"/g, '&quot;')})"><i class="bi bi-shield-check me-1"></i>สิทธิ์</button>`;
             return `
           <tr>
             <td>${u.Username}</td>
             <td>${u.FullName}</td>
             <td><span class="badge-soft badge-navy">${CONFIG_ROLE_LABELS_CLIENT[u.Role] || u.Role}</span></td>
+            <td>${permBadges}</td>
             <td>${statusBadge}</td>
             <td class="text-secondary small">${lastLogin}</td>
-            <td class="text-end">${toggleBtn}</td>
+            <td class="text-end">${toggleBtn} ${editPermBtn}</td>
           </tr>`;
           })
           .join("");
         document.getElementById("userTableBody").innerHTML =
           rows ||
-          '<tr><td colspan="6" class="text-center text-secondary py-4">ไม่มีข้อมูลผู้ใช้งาน</td></tr>';
+          '<tr><td colspan="7" class="text-center text-secondary py-4">ไม่มีข้อมูลผู้ใช้งาน</td></tr>';
       })
       .withFailureHandler((err) => {
         document.getElementById("userTableBody").innerHTML =
-          `<tr><td colspan="6" class="text-center text-secondary py-4">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+          `<tr><td colspan="7" class="text-center text-secondary py-4">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
       })
       .apiGetUsers(getToken());
   }
@@ -2746,6 +2757,7 @@
     document.getElementById("um_fullName").value = "";
     document.getElementById("um_role").value = "advisor";
     document.getElementById("um_password").value = "";
+    document.querySelectorAll(".um_perm").forEach((cb) => (cb.checked = false));
     new bootstrap.Modal(document.getElementById("userModal")).show();
   }
 
@@ -2755,6 +2767,12 @@
       fullName: document.getElementById("um_fullName").value.trim(),
       role: document.getElementById("um_role").value,
       password: document.getElementById("um_password").value,
+      permissions: {
+        score: document.getElementById("um_perm_score").checked,
+        approveLeave: document.getElementById("um_perm_approveLeave").checked,
+        editDelete: document.getElementById("um_perm_editDelete").checked,
+        manageSystem: document.getElementById("um_perm_manageSystem").checked,
+      },
     };
     if (!payload.username || !payload.fullName || !payload.password) {
       Swal.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบ" });
@@ -2797,6 +2815,57 @@
         }),
       )
       .apiAddUser(getToken(), payload);
+  }
+
+  function openEditPermissionsModal(userId, fullName, perms) {
+    document.getElementById("upm_userName").value = fullName;
+    document.getElementById("upm_userName").dataset.userId = userId;
+    document.getElementById("upm_perm_score").checked = !!perms.score;
+    document.getElementById("upm_perm_approveLeave").checked = !!perms.approveLeave;
+    document.getElementById("upm_perm_editDelete").checked = !!perms.editDelete;
+    document.getElementById("upm_perm_manageSystem").checked = !!perms.manageSystem;
+    new bootstrap.Modal(document.getElementById("userPermModal")).show();
+  }
+
+  function submitEditPermissions() {
+    const userId = document.getElementById("upm_userName").dataset.userId;
+    if (!userId) return;
+    const permissions = {
+      score: document.getElementById("upm_perm_score").checked,
+      approveLeave: document.getElementById("upm_perm_approveLeave").checked,
+      editDelete: document.getElementById("upm_perm_editDelete").checked,
+      manageSystem: document.getElementById("upm_perm_manageSystem").checked,
+    };
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (res.success) {
+          bootstrap.Modal.getInstance(
+            document.getElementById("userPermModal"),
+          ).hide();
+          Swal.fire({
+            icon: "success",
+            title: "บันทึกสิทธิ์เรียบร้อยแล้ว",
+            text: "ผู้ใช้จะต้องเข้าสู่ระบบใหม่เพื่อให้สิทธิ์มีผล",
+            timer: 2500,
+            showConfirmButton: false,
+          });
+          loadUsers();
+        } else {
+          Swal.fire({
+            icon: "error",
+            title: "บันทึกไม่สำเร็จ",
+            text: res.message,
+          });
+        }
+      })
+      .withFailureHandler((err) =>
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: err.message,
+        }),
+      )
+      .apiUpdateUserPermissions(getToken(), userId, permissions);
   }
 
   function toggleUser(userId, active, fullName) {

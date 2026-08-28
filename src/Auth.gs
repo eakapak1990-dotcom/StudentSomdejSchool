@@ -30,6 +30,10 @@ function handleLogin_(username, password) {
   }
 
   // ใช้ cached Users sheet (ไม่อ่านใหม่ทุกครั้ง)
+  // ensurePermissionsColumn_ ก่อนเพื่อรองรับระบบเดิมที่ยังไม่มีคอลัมน์ Permissions
+  let colPerm;
+  try { colPerm = ensurePermissionsColumn_(); } catch (e) { colPerm = -1; }
+  invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
   const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
   const headers = cached.headers;
 
@@ -39,6 +43,7 @@ function handleLogin_(username, password) {
   const colFullName = headers.indexOf('FullName');
   const colRole = headers.indexOf('Role');
   const colActive = headers.indexOf('Active');
+  if (colPerm === -1) colPerm = headers.indexOf('Permissions');
 
   const recordFail = function (message) {
     const count = Number(failData.count || 0) + 1;
@@ -62,8 +67,26 @@ function handleLogin_(username, password) {
       // สำเร็จ → ล้างตัวนับ
       props.deleteProperty(failKey);
 
+      // อ่านสิทธิ์รายบุคคลจากคอลัมน์ Permissions (JSON)
+      let userPermissions = {};
+      if (colPerm !== -1) {
+        try {
+          const rawPerm = row[colPerm];
+          if (rawPerm && String(rawPerm).trim()) {
+            userPermissions = JSON.parse(String(rawPerm));
+          } else {
+            // ถ้ายังว่าง → ใช้สิทธิ์จาก role เป็น fallback
+            userPermissions = CONFIG.PERMISSIONS[row[colRole]] || {};
+          }
+        } catch (e) {
+          userPermissions = CONFIG.PERMISSIONS[row[colRole]] || {};
+        }
+      } else {
+        userPermissions = CONFIG.PERMISSIONS[row[colRole]] || {};
+      }
+
       // สร้าง session (เร็ว — ไม่เขียน Sheets)
-      const token = createSession_(row[colUserID], row[colFullName], row[colRole]);
+      const token = createSession_(row[colUserID], row[colFullName], row[colRole], userPermissions);
 
       // อัปเดต LastLogin + hash upgrade — เขียนทีเดียวแบบ async (ไม่ blocking response)
       try {
@@ -84,7 +107,7 @@ function handleLogin_(username, password) {
           fullName: row[colFullName],
           role: row[colRole],
           roleLabel: CONFIG.ROLE_LABELS[row[colRole]] || row[colRole],
-          permissions: CONFIG.PERMISSIONS[row[colRole]] || {}
+          permissions: userPermissions
         }
       };
     }
@@ -173,10 +196,10 @@ function bumpSessionVersion_(userId) {
 }
 
 /** สร้าง Session token เก็บใน CacheService */
-function createSession_(userId, fullName, role) {
+function createSession_(userId, fullName, role, permissions) {
   const token = Utilities.getUuid();
   const cache = CacheService.getScriptCache();
-  const sessionData = JSON.stringify({ userId: userId, fullName: fullName, role: role, ver: getSessionVersion_(userId) });
+  const sessionData = JSON.stringify({ userId: userId, fullName: fullName, role: role, permissions: permissions || {}, ver: getSessionVersion_(userId) });
   cache.put(token, sessionData, CONFIG.SESSION_DURATION_HOURS * 3600);
   return token;
 }

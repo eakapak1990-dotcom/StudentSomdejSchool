@@ -50,7 +50,7 @@ function api_getStudentDetail_(token, studentId) {
     if (!student) return { success: false, message: 'ไม่พบข้อมูลนักเรียน' };
 
     // PDPA: เลขบัตรเต็มส่งให้เฉพาะ role ที่มีสิทธิ์แก้ไขข้อมูล (editDelete) — จำเป็นสำหรับฟอร์มแก้ไข
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       student.CitizenID = maskCitizenId_(student.CitizenID);
     }
 
@@ -78,7 +78,7 @@ function api_addStudent_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์เพิ่มข้อมูลนักเรียน' };
     }
 
@@ -147,7 +147,7 @@ function api_importStudents_(token, rows) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์นำเข้านักเรียน' };
     }
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -260,7 +260,7 @@ function api_updateStudent_(token, studentId, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์แก้ไขข้อมูลนี้' };
     }
 
@@ -367,7 +367,7 @@ function api_deleteStudent_(token, studentId) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ลบข้อมูลนี้' };
     }
 
@@ -719,7 +719,7 @@ function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์อัปโหลดรูปภาพ' };
     }
 

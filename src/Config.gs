@@ -218,3 +218,34 @@ function invalidateSheetCache_(sheetName) {
     _cachedConfigMap = null;
   }
 }
+
+/**
+ * ตรวจสอบและเพิ่มคอลัมน์ Permissions ใน Sheet Users ถ้ายังไม่มี
+ * สำหรับผู้ใช้เดิมที่ยังไม่มีค่า Permissions → เติมสิทธิ์จาก role ปัจจุบัน (migrate)
+ * @return {number} คอลัมน์ index ของ Permissions (0-based)
+ */
+function ensurePermissionsColumn_() {
+  const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colPerm = headers.indexOf('Permissions');
+  if (colPerm !== -1) return colPerm; // มีแล้ว
+
+  // เพิ่มคอลัมน์ใหม่ถัดจากคอลัมน์สุดท้าย
+  const newColPos = headers.length + 1;
+  sheet.getRange(1, newColPos).setValue('Permissions')
+    .setFontWeight('bold').setBackground('#152A52').setFontColor('#FFFFFF');
+
+  // Migrate ผู้ใช้เดิม: เติมสิทธิ์จาก role ปัจจุบัน
+  const data = sheet.getDataRange().getValues();
+  const colRole = headers.indexOf('Role');
+  const lastRow = sheet.getLastRow();
+  for (let i = 1; i < data.length; i++) {
+    const role = data[i][colRole];
+    const perms = CONFIG.PERMISSIONS[role] || CONFIG.PERMISSIONS[CONFIG.ROLES.PATROL] || {};
+    sheet.getRange(i + 1, newColPos).setValue(JSON.stringify(perms));
+  }
+
+  invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
+  Logger.log('ensurePermissionsColumn_: เพิ่มคอลัมน์ Permissions และ migrate ผู้ใช้เดิมแล้ว');
+  return newColPos - 1; // 0-based index
+}

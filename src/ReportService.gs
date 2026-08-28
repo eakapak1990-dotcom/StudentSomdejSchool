@@ -9,7 +9,7 @@ function api_getSemesterConfig_(token) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์เข้าถึงส่วนนี้' };
     }
 
@@ -33,7 +33,7 @@ function api_saveSemesterConfig_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์แก้ไขส่วนนี้' };
     }
 
@@ -144,6 +144,9 @@ function api_getScoreOverview_(token, filters) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!session.permissions || !session.permissions.score) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์ดูรายงาน' };
+    }
 
     const { start, end } = resolveDateRange_(filters || {});
 
@@ -256,6 +259,9 @@ function api_getRoomReasonStats_(token, filters) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!session.permissions || !session.permissions.score) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์ดูรายงาน' };
+    }
 
     const { start, end } = resolveDateRange_(filters || {});
 
@@ -336,6 +342,9 @@ function api_getLetterLeaveStats_(token, filters) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!session.permissions || !session.permissions.score) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์ดูรายงาน' };
+    }
 
     const range = resolveDateRange_(filters || {});
     const start = range.start;
@@ -533,7 +542,7 @@ function api_exportReport_(token, reportType, filters, format) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ส่งออกรายงาน' };
     }
     if (['pdf', 'excel'].indexOf(format) === -1) {

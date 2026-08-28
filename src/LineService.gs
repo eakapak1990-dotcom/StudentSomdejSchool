@@ -388,7 +388,7 @@ function api_getLineSettings_(token) {
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
     const bindings = getAllLineBindings_();
     // Channel Access Token เป็นความลับ — ส่งเต็มเฉพาะ role manageSystem, role อื่นเห็นค่า mask
-    const canManage = !!CONFIG.PERMISSIONS[session.role] && !!CONFIG.PERMISSIONS[session.role].manageSystem;
+    const canManage = !!session.permissions && !!session.permissions.manageSystem;
     const rawToken = getConfigValue_('LINE_CHANNEL_ACCESS_TOKEN') || '';
     const rawSecret = getConfigValue_('LINE_CHANNEL_SECRET') || '';
     return {
@@ -419,7 +419,7 @@ function api_saveLineSettings_(token, settings) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการตั้งค่า LINE — เฉพาะผู้ดูแลระบบ' };
     }
     setConfigValue_('LINE_CHANNEL_ACCESS_TOKEN', String(settings.channelAccessToken || '').trim(), 'LINE OA Channel Access Token (Messaging API)');
@@ -438,7 +438,7 @@ function api_addLineBinding_(token, studentId, lineUserId, parentDisplayName) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการเชื่อมต่อ LINE' };
     }
     const st = findStudentById_(String(studentId || '').trim());
@@ -460,7 +460,7 @@ function api_removeLineBinding_(token, bindingId) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการเชื่อมต่อ LINE' };
     }
     const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
@@ -986,7 +986,7 @@ function api_addAnnouncement_(token, title, message, type, sendLine) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ประกาศข่าว' };
     }
     title = String(title || '').trim();
@@ -1009,7 +1009,7 @@ function api_deleteAnnouncement_(token, announcementId) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].editDelete) {
+    if (!session.permissions || !session.permissions.editDelete) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ลบประกาศ' };
     }
     const sheet = getSheet(CONFIG.SHEET_NAMES.ANNOUNCEMENTS);

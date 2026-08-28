@@ -6,16 +6,27 @@ function api_getUsers_(token) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้' };
     }
+
+    // รับรองว่ามีคอลัมน์ Permissions แล้ว
+    try { ensurePermissionsColumn_(); } catch (e) {}
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
+    const colPerm = headers.indexOf('Permissions');
     const users = data.slice(1).map(row => {
       const obj = rowToObject_(headers, row);
       delete obj.PasswordHash; // ไม่ส่ง hash รหัสผ่านออกไปฝั่ง client เด็ดขาด
+      // parse Permissions JSON ส่งกลับเป็น object
+      if (colPerm !== -1 && obj.Permissions) {
+        try { obj.Permissions = JSON.parse(String(obj.Permissions)); }
+        catch (e) { obj.Permissions = CONFIG.PERMISSIONS[obj.Role] || {}; }
+      } else {
+        obj.Permissions = CONFIG.PERMISSIONS[obj.Role] || {};
+      }
       return obj;
     });
 
@@ -30,7 +41,7 @@ function api_addUser_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์เพิ่มผู้ใช้งาน' };
     }
 
@@ -49,10 +60,17 @@ function api_addUser_(token, payload) {
       return { success: false, message: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' };
     }
 
+    // สิทธิ์รายบุคคล: รับจาก payload หรือใช้ค่าจาก role เป็น default
+    const permissions = payload.permissions || CONFIG.PERMISSIONS[role] || {};
+
+    // รับรองว่ามีคอลัมน์ Permissions แล้ว
+    try { ensurePermissionsColumn_(); } catch (e) {}
+
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
     const colUsername = headers.indexOf('Username');
+    const colPerm = headers.indexOf('Permissions');
 
     for (let i = 1; i < data.length; i++) {
       if (data[i][colUsername] === username) {
@@ -61,10 +79,15 @@ function api_addUser_(token, payload) {
     }
 
     const newUserId = 'USR' + String(data.length).padStart(4, '0');
-    sheet.appendRow([
+    // สร้างแถวใหม่ — เพิ่มคอลัมน์ Permissions ถ้ามี
+    const newRow = [
       newUserId, username, hashPassword_(password), fullName,
       role, true, '', new Date()
-    ]);
+    ];
+    if (colPerm !== -1) {
+      newRow.push(JSON.stringify(permissions));
+    }
+    sheet.appendRow(newRow);
 
     logAudit_(session, 'CREATE', CONFIG.SHEET_NAMES.USERS, newUserId, '', 'เพิ่มผู้ใช้งานใหม่: ' + username + ' (' + role + ')');
 
@@ -79,7 +102,7 @@ function api_toggleUserActive_(token, userId, active) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ดำเนินการนี้' };
     }
     if (userId === session.userId) {
@@ -147,7 +170,7 @@ function api_resetUserPassword_(token, userId, newPassword) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].manageSystem) {
+    if (!session.permissions || !session.permissions.manageSystem) {
       return { success: false, message: 'คุณไม่มีสิทธิ์รีเซ็ตรหัสผ่านผู้อื่น' };
     }
     if (!newPassword || newPassword.length < 8) {
@@ -176,6 +199,53 @@ function api_resetUserPassword_(token, userId, newPassword) {
   }
 }
 
+/**
+ * แก้ไขสิทธิ์รายบุคคลของผู้ใช้ที่มีอยู่แล้ว
+ * บันทึกเป็น JSON ลงคอลัมน์ Permissions และเพิกถอน session เก่าให้ login ใหม่
+ */
+function api_updateUserPermissions_(token, userId, permissions) {
+  try {
+    const session = validateSession_(token);
+    if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!session.permissions || !session.permissions.manageSystem) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์แก้ไขสิทธิ์ผู้ใช้' };
+    }
+
+    // ตรวจสอบว่า permissions มี key ที่ถูกต้อง
+    const validKeys = ['score', 'approveLeave', 'editDelete', 'manageSystem'];
+    const cleanPerms = {};
+    validKeys.forEach(k => { cleanPerms[k] = !!permissions[k]; });
+
+    // รับรองว่ามีคอลัมน์ Permissions แล้ว
+    try { ensurePermissionsColumn_(); } catch (e) {}
+
+    const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('UserID');
+    const colPerm = headers.indexOf('Permissions');
+
+    if (colPerm === -1) {
+      return { success: false, message: 'ระบบยังไม่พร้อม — กรุณาติดต่อผู้ดูแล' };
+    }
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][colId] === userId) {
+        sheet.getRange(i + 1, colPerm + 1).setValue(JSON.stringify(cleanPerms));
+        // เพิกถอน session เก่าของผู้ถูกแก้สิทธิ์ → ต้อง login ใหม่เพื่อรับสิทธิ์ใหม่
+        bumpSessionVersion_(userId);
+        invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
+        logAudit_(session, 'UPDATE_PERMISSIONS', CONFIG.SHEET_NAMES.USERS, userId, '', 'แก้ไขสิทธิ์: ' + JSON.stringify(cleanPerms));
+        return { success: true };
+      }
+    }
+    return { success: false, message: 'ไม่พบผู้ใช้งานนี้' };
+  } catch (err) {
+    Logger.log('API error: ' + err.message);
+    return { success: false, message: 'เกิดข้อผิดพลาดฝั่งระบบ กรุณาลองใหม่อีกครั้ง' };
+  }
+}
+
 // ============================================
 // Public Functions (สำหรับ google.script.run)
 // ============================================
@@ -184,3 +254,4 @@ function apiAddUser(token, payload) { return api_addUser_(token, payload); }
 function apiToggleUserActive(token, userId, active) { return api_toggleUserActive_(token, userId, active); }
 function apiChangeOwnPassword(token, oldPassword, newPassword) { return api_changeOwnPassword_(token, oldPassword, newPassword); }
 function apiResetUserPassword(token, userId, newPassword) { return api_resetUserPassword_(token, userId, newPassword); }
+function apiUpdateUserPermissions(token, userId, permissions) { return api_updateUserPermissions_(token, userId, permissions); }

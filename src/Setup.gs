@@ -22,7 +22,7 @@ function setupAllSheets() {
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.USERS, [
     'UserID', 'Username', 'PasswordHash', 'FullName', 'Role',
-    'Active', 'LastLogin', 'CreatedAt'
+    'Active', 'LastLogin', 'CreatedAt', 'Permissions'
   ]);
 
   createSheetWithHeaders_(ss, CONFIG.SHEET_NAMES.SCORE_LOGS, [
@@ -78,9 +78,13 @@ function setupAllSheets() {
   if (usersSheet.getLastRow() === 1) {
     usersSheet.appendRow([
       'USR0001', 'admin', hashPassword_('Admin@1234'), 'ผู้ดูแลระบบ',
-      CONFIG.ROLES.ADMIN, true, '', new Date()
+      CONFIG.ROLES.ADMIN, true, '', new Date(),
+      JSON.stringify({ score: true, approveLeave: true, editDelete: true, manageSystem: true })
     ]);
   }
+
+  // Migrate ผู้ใช้เดิมที่ยังไม่มีคอลัมน์ Permissions
+  ensurePermissionsColumn_();
 
   // แก้เบอร์โทรเดิมที่เลข 0 หน้าหาย + ตั้งคอลัมน์ ParentPhone เป็นข้อความ
   migrateFixParentPhones_();

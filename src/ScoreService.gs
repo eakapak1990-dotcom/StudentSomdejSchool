@@ -8,7 +8,7 @@ function api_addScore_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].score) {
+    if (!session.permissions || !session.permissions.score) {
       return { success: false, message: 'คุณไม่มีสิทธิ์บันทึกคะแนน' };
     }
 
@@ -159,6 +159,9 @@ function api_getScoreHistory_(token, filters) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!session.permissions || !session.permissions.score) {
+      return { success: false, message: 'คุณไม่มีสิทธิ์ดูประวัติคะแนน' };
+    }
 
     filters = filters || {};
     const limit = filters.limit || 50;

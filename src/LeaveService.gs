@@ -6,7 +6,7 @@ function api_createLeaveRequest_(token, payload) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].score) {
+    if (!session.permissions || !session.permissions.score) {
       return { success: false, message: 'คุณไม่มีสิทธิ์สร้างคำร้อง' };
     }
 
@@ -62,7 +62,7 @@ function api_getLeaveRequests_(token, filters) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].approveLeave) {
+    if (!session.permissions || !session.permissions.approveLeave) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ดูรายการคำร้อง' };
     }
 
@@ -116,7 +116,7 @@ function api_updateLeaveStatus_(token, requestId, status, approvalReason) {
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].approveLeave) {
+    if (!session.permissions || !session.permissions.approveLeave) {
       return { success: false, message: 'คุณไม่มีสิทธิ์อนุมัติคำร้อง' };
     }
     if (!['approved', 'rejected'].includes(status)) {
@@ -184,7 +184,7 @@ function api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTi
   try {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
-    if (!CONFIG.PERMISSIONS[session.role] || !CONFIG.PERMISSIONS[session.role].approveLeave) {
+    if (!session.permissions || !session.permissions.approveLeave) {
       return { success: false, message: 'คุณไม่มีสิทธิ์บันทึกเวลาออกจริง' };
     }
     // LockService: กันการบันทึกเวลาจริงพร้อมกันหลายคน

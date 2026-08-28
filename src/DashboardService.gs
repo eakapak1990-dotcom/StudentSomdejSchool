@@ -7,10 +7,9 @@ function api_getDashboardSummary_(token) {
     const session = validateSession_(token);
     if (!session) return { success: false, message: 'กรุณาเข้าสู่ระบบใหม่' };
 
-    const studentSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studentData = studentSheet.getDataRange().getValues();
-    const studentHeaders = studentData[0];
-    const students = studentData.slice(1).map(row => rowToObject_(studentHeaders, row));
+    const studentData = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const studentHeaders = studentData.headers;
+    const students = studentData.rows.map(row => rowToObject_(studentHeaders, row));
 
     const totalStudents = students.length;
     const atRisk = students.filter(s => Number(s.CurrentScore) < 70).length;
@@ -31,10 +30,9 @@ function api_getDashboardSummary_(token) {
     });
 
     // Timeline: เหตุการณ์วันนี้ + เหตุการณ์ล่าสุด
-    const timelineSheet = getSheet(CONFIG.SHEET_NAMES.TIMELINE);
-    const timelineData = timelineSheet.getDataRange().getValues();
-    const timelineHeaders = timelineData[0];
-    let events = timelineData.slice(1).map(row => rowToObject_(timelineHeaders, row));
+    const timelineData = getCachedSheetData_(CONFIG.SHEET_NAMES.TIMELINE);
+    const timelineHeaders = timelineData.headers;
+    let events = timelineData.rows.map(row => rowToObject_(timelineHeaders, row));
 
     events.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 

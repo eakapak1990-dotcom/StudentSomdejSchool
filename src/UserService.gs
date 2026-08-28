@@ -14,10 +14,10 @@ function api_getUsers_(token) {
     try { ensurePermissionsColumn_(); } catch (e) {}
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colPerm = headers.indexOf('Permissions');
-    const users = data.slice(1).map(row => {
+    const users = cached.rows.map(row => {
       const obj = rowToObject_(headers, row);
       delete obj.PasswordHash; // ไม่ส่ง hash รหัสผ่านออกไปฝั่ง client เด็ดขาด
       // parse Permissions JSON ส่งกลับเป็น object
@@ -67,18 +67,18 @@ function api_addUser_(token, payload) {
     try { ensurePermissionsColumn_(); } catch (e) {}
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colUsername = headers.indexOf('Username');
     const colPerm = headers.indexOf('Permissions');
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colUsername] === username) {
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colUsername] === username) {
         return { success: false, message: 'ชื่อผู้ใช้นี้มีอยู่แล้วในระบบ' };
       }
     }
 
-    const newUserId = 'USR' + String(data.length).padStart(4, '0');
+    const newUserId = 'USR' + String(cached.rows.length + 1).padStart(4, '0');
     // สร้างแถวใหม่ — เพิ่มคอลัมน์ Permissions ถ้ามี
     const newRow = [
       newUserId, username, hashPassword_(password), fullName,
@@ -110,13 +110,13 @@ function api_toggleUserActive_(token, userId, active) {
     }
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colId = headers.indexOf('UserID');
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === userId) {
-        sheet.getRange(i + 1, headers.indexOf('Active') + 1).setValue(active);
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colId] === userId) {
+        sheet.getRange(i + 2, headers.indexOf('Active') + 1).setValue(active);
         logAudit_(session, active ? 'ACTIVATE' : 'SUSPEND', CONFIG.SHEET_NAMES.USERS, userId, '', active ? 'เปิดใช้งาน' : 'ระงับการใช้งาน');
         return { success: true };
       }
@@ -141,18 +141,18 @@ function api_changeOwnPassword_(token, oldPassword, newPassword) {
     }
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colId = headers.indexOf('UserID');
     const colHash = headers.indexOf('PasswordHash');
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === session.userId) {
-        const currentHash = data[i][colHash];
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colId] === session.userId) {
+        const currentHash = cached.rows[i][colHash];
         if (!verifyPassword_(oldPassword, String(currentHash || ''))) {
           return { success: false, message: 'รหัสผ่านเดิมไม่ถูกต้อง' };
         }
-        sheet.getRange(i + 1, colHash + 1).setValue(hashPassword_(newPassword));
+        sheet.getRange(i + 2, colHash + 1).setValue(hashPassword_(newPassword));
         // เพิกถอน session ทั้งหมด (รวม session ปัจจุบัน) — ต้องล็อกอินใหม่ด้วยรหัสใหม่
         bumpSessionVersion_(session.userId);
         logAudit_(session, 'CHANGE_PASSWORD', CONFIG.SHEET_NAMES.USERS, session.userId, '', 'เปลี่ยนรหัสผ่านตนเอง');
@@ -178,14 +178,14 @@ function api_resetUserPassword_(token, userId, newPassword) {
     }
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colId = headers.indexOf('UserID');
     const colHash = headers.indexOf('PasswordHash');
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === userId) {
-        sheet.getRange(i + 1, colHash + 1).setValue(hashPassword_(newPassword));
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colId] === userId) {
+        sheet.getRange(i + 2, colHash + 1).setValue(hashPassword_(newPassword));
         // เพิกถอน session เก่าทั้งหมดของผู้ถูกเปลี่ยนรหัส
         bumpSessionVersion_(userId);
         logAudit_(session, 'RESET_PASSWORD', CONFIG.SHEET_NAMES.USERS, userId, '', 'รีเซ็ตรหัสผ่านโดยผู้ดูแลระบบ');
@@ -220,8 +220,8 @@ function api_updateUserPermissions_(token, userId, permissions) {
     try { ensurePermissionsColumn_(); } catch (e) {}
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colId = headers.indexOf('UserID');
     const colPerm = headers.indexOf('Permissions');
 
@@ -229,9 +229,9 @@ function api_updateUserPermissions_(token, userId, permissions) {
       return { success: false, message: 'ระบบยังไม่พร้อม — กรุณาติดต่อผู้ดูแล' };
     }
 
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === userId) {
-        sheet.getRange(i + 1, colPerm + 1).setValue(JSON.stringify(cleanPerms));
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colId] === userId) {
+        sheet.getRange(i + 2, colPerm + 1).setValue(JSON.stringify(cleanPerms));
         // เพิกถอน session เก่าของผู้ถูกแก้สิทธิ์ → ต้อง login ใหม่เพื่อรับสิทธิ์ใหม่
         bumpSessionVersion_(userId);
         invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);

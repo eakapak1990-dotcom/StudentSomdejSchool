@@ -321,24 +321,24 @@ function api_updateStudent_(token, studentId, payload) {
 
     if (hasParentData) {
       const pSheet = getSheet(CONFIG.SHEET_NAMES.PARENTS);
-      const pData = pSheet.getDataRange().getValues();
-      const pHeaders = pData[0];
+      const pCached = getCachedSheetData_(CONFIG.SHEET_NAMES.PARENTS);
+      const pHeaders = pCached.headers;
       const pColId = pHeaders.indexOf('StudentID');
       let parentFound = false;
 
-      for (let i = 1; i < pData.length; i++) {
-        if (sameId_(pData[i][pColId], studentId)) {
+      for (let i = 0; i < pCached.rows.length; i++) {
+        if (sameId_(pCached.rows[i][pColId], studentId)) {
           Object.keys(parentFieldMap).forEach(key => {
             if (payload[key] !== undefined) {
               const col = pHeaders.indexOf(parentFieldMap[key]);
               if (col !== -1) {
                 let val = payload[key];
                 if (key === 'parentPhone') val = normalizePhone_(val);
-                pSheet.getRange(i + 1, col + 1).setValue(val);
+                pSheet.getRange(i + 2, col + 1).setValue(val);
               }
             }
           });
-          pSheet.getRange(i + 1, pHeaders.indexOf('UpdatedAt') + 1).setValue(new Date());
+          pSheet.getRange(i + 2, pHeaders.indexOf('UpdatedAt') + 1).setValue(new Date());
           parentFound = true;
           break;
         }
@@ -614,24 +614,24 @@ function getNextRecordSequence_(recordType) {
  */
 function countRecordsInAcademicYear_(sheetName) {
   try {
-    const sheet = getSheet(sheetName);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(sheetName);
+    const headers = cached.headers;
+    const rows = cached.rows;
 
     const start = parseConfigDate_(getConfigValue_('SEMESTER_1_START'), false);
     const end = parseConfigDate_(getConfigValue_('SEMESTER_2_END'), true);
     if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return Math.max(0, data.length - 1);
+      return Math.max(0, rows.length);
     }
 
     // คอลัมน์เวลา: ScoreLogs ใช้ Timestamp ส่วนชีตอื่นใช้ CreatedAt
     const col = headers.indexOf('CreatedAt') !== -1 ? headers.indexOf('CreatedAt')
       : headers.indexOf('Timestamp');
-    if (col === -1) return Math.max(0, data.length - 1);
+    if (col === -1) return Math.max(0, rows.length);
 
     let count = 0;
-    for (let i = 1; i < data.length; i++) {
-      const ts = data[i][col];
+    for (let i = 0; i < rows.length; i++) {
+      const ts = rows[i][col];
       if (ts instanceof Date && ts.getTime() >= start.getTime() && ts.getTime() <= end.getTime()) {
         count++;
       }
@@ -664,15 +664,15 @@ function getStudentTimeline_(studentId) {
 function deleteRelatedRows_(sheetName, studentId) {
   try {
     const sheet = getSheet(sheetName);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(sheetName);
+    const headers = cached.headers;
     const colId = headers.indexOf('StudentID');
     if (colId === -1) return;
 
     // วน reverse เพื่อลบจากล่างขึ้นบน
-    for (let i = data.length - 1; i >= 1; i--) {
-      if (sameId_(data[i][colId], studentId)) {
-        sheet.deleteRow(i + 1);
+    for (let i = cached.rows.length - 1; i >= 0; i--) {
+      if (sameId_(cached.rows[i][colId], studentId)) {
+        sheet.deleteRow(i + 2);
       }
     }
   } catch (e) {
@@ -753,15 +753,15 @@ function api_uploadStudentPhoto_(token, studentId, base64Data, mimeType, fileExt
     }
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const headers = cached.headers;
     const colId = headers.indexOf('StudentID');
     const colPhoto = headers.indexOf('PhotoFileID');
 
-    for (let i = 1; i < data.length; i++) {
-      if (sameId_(data[i][colId], studentId)) {
-        sheet.getRange(i + 1, colPhoto + 1).setValue(photoFile.getId());
-        sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (sameId_(cached.rows[i][colId], studentId)) {
+        sheet.getRange(i + 2, colPhoto + 1).setValue(photoFile.getId());
+        sheet.getRange(i + 2, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
         break;
       }
     }

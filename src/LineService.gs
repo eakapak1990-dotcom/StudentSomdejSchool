@@ -15,9 +15,8 @@ const LINE_API_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
 
 /** คืนค่ารายการผูกบัญชีที่ Active ของนักเรียนคนนั้น */
 function getLineBindingsForStudent_(studentId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+  const headers = cached.headers;
   const colBinding = headers.indexOf('BindingID');
   const colId = headers.indexOf('StudentID');
   const colLine = headers.indexOf('LineUserID');
@@ -25,14 +24,14 @@ function getLineBindingsForStudent_(studentId) {
   const colBoundAt = headers.indexOf('BoundAt');
   const colActive = headers.indexOf('Active');
   const out = [];
-  for (let i = 1; i < data.length; i++) {
-    if (sameId_(data[i][colId], studentId) && data[i][colActive] !== false) {
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (sameId_(cached.rows[i][colId], studentId) && cached.rows[i][colActive] !== false) {
       out.push({
-        BindingID: data[i][colBinding],
-        StudentID: data[i][colId],
-        LineUserID: data[i][colLine],
-        ParentDisplayName: data[i][colName] || 'ผู้ปกครอง',
-        BoundAt: data[i][colBoundAt]
+        BindingID: cached.rows[i][colBinding],
+        StudentID: cached.rows[i][colId],
+        LineUserID: cached.rows[i][colLine],
+        ParentDisplayName: cached.rows[i][colName] || 'ผู้ปกครอง',
+        BoundAt: cached.rows[i][colBoundAt]
       });
     }
   }
@@ -41,17 +40,16 @@ function getLineBindingsForStudent_(studentId) {
 
 /** คืนค่ารายการผูกบัญชีที่ Active ของ LINE user คนหนึ่ง (ใช้ฝั่ง LIFF) */
 function getLineBindingsForUser_(lineUserId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+  const headers = cached.headers;
   const colBinding = headers.indexOf('BindingID');
   const colId = headers.indexOf('StudentID');
   const colLine = headers.indexOf('LineUserID');
   const colActive = headers.indexOf('Active');
   const out = [];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][colLine] === lineUserId && data[i][colActive] !== false) {
-      out.push({ BindingID: data[i][colBinding], StudentID: data[i][colId] });
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (cached.rows[i][colLine] === lineUserId && cached.rows[i][colActive] !== false) {
+      out.push({ BindingID: cached.rows[i][colBinding], StudentID: cached.rows[i][colId] });
     }
   }
   return out;
@@ -61,14 +59,14 @@ function getLineBindingsForUser_(lineUserId) {
 function setStudentLineLinked_(studentId, linked) {
   try {
     const sheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const headers = cached.headers;
     const colId = headers.indexOf('StudentID');
     const colLine = headers.indexOf('LineLinked');
     if (colId === -1 || colLine === -1) return;
-    for (let i = 1; i < data.length; i++) {
-      if (sameId_(data[i][colId], studentId)) {
-        sheet.getRange(i + 1, colLine + 1).setValue(linked);
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (sameId_(cached.rows[i][colId], studentId)) {
+        sheet.getRange(i + 2, colLine + 1).setValue(linked);
         return;
       }
     }
@@ -464,13 +462,13 @@ function api_removeLineBinding_(token, bindingId) {
       return { success: false, message: 'คุณไม่มีสิทธิ์จัดการการเชื่อมต่อ LINE' };
     }
     const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+    const headers = cached.headers;
     const colBinding = headers.indexOf('BindingID');
-    for (let i = data.length - 1; i >= 1; i--) {
-      if (data[i][colBinding] === bindingId) {
-        const studentId = data[i][headers.indexOf('StudentID')];
-        sheet.deleteRow(i + 1);
+    for (let i = cached.rows.length - 1; i >= 0; i--) {
+      if (cached.rows[i][colBinding] === bindingId) {
+        const studentId = cached.rows[i][headers.indexOf('StudentID')];
+        sheet.deleteRow(i + 2);
         // ถ้านักเรียนไม่มี binding อื่นเหลืออยู่ → reset LineLinked
         if (!getLineBindingsForStudent_(studentId).length) setStudentLineLinked_(studentId, false);
         return { success: true };
@@ -658,21 +656,21 @@ function apiLiffBind(lineUserId, studentId, verifyMethod, verifyValue, pin) {
 function apiLiffUnbind(lineUserId, studentId, pin) {
   try {
     const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+    const headers = cached.headers;
     const colBinding = headers.indexOf('BindingID');
     const colLine = headers.indexOf('LineUserID');
     const colId = headers.indexOf('StudentID');
     const colPin = headers.indexOf('PinCode');
     const colActive = headers.indexOf('Active');
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colLine] === lineUserId && sameId_(data[i][colId], studentId) && data[i][colActive] !== false) {
-        const pinHash = data[i][colPin];
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colLine] === lineUserId && sameId_(cached.rows[i][colId], studentId) && cached.rows[i][colActive] !== false) {
+        const pinHash = cached.rows[i][colPin];
         // รองรับ PIN รุ่นเก่า (4-6 หลัก, hash SHA-256) ด้วย verifyPassword_
         if (!pinHash || !verifyPassword_(String(pin || '').trim(), String(pinHash))) {
           return { success: false, message: 'รหัส PIN ไม่ถูกต้อง' };
         }
-        sheet.getRange(i + 1, colActive + 1).setValue(false);
+        sheet.getRange(i + 2, colActive + 1).setValue(false);
         if (!getLineBindingsForStudent_(String(studentId).trim()).length) {
           setStudentLineLinked_(String(studentId).trim(), false);
         }
@@ -693,19 +691,19 @@ function apiLiffChangePin(lineUserId, studentId, oldPin, newPin) {
     newPin = String(newPin || '').trim();
     if (!/^\d{6}$/.test(newPin)) return { success: false, message: 'รหัส PIN ใหม่ต้องเป็นตัวเลข 6 หลัก' };
     const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+    const headers = cached.headers;
     const colLine = headers.indexOf('LineUserID');
     const colId = headers.indexOf('StudentID');
     const colPin = headers.indexOf('PinCode');
     const colActive = headers.indexOf('Active');
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colLine] === lineUserId && sameId_(data[i][colId], studentId) && data[i][colActive] !== false) {
-        const pinHash = data[i][colPin];
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colLine] === lineUserId && sameId_(cached.rows[i][colId], studentId) && cached.rows[i][colActive] !== false) {
+        const pinHash = cached.rows[i][colPin];
         if (!pinHash || !verifyPassword_(oldPin, String(pinHash))) {
           return { success: false, message: 'รหัส PIN เดิมไม่ถูกต้อง' };
         }
-        sheet.getRange(i + 1, colPin + 1).setValue(hashPassword_(newPin));
+        sheet.getRange(i + 2, colPin + 1).setValue(hashPassword_(newPin));
         return { success: true };
       }
     }
@@ -783,13 +781,12 @@ function apiLiffGetStudentScore(lineUserId, studentId) {
 
 /** หนังสือเชิญผู้ปกครองของนักเรียนคนหนึ่ง (เรียงล่าสุดก่อน) */
 function getStudentLetters_(studentId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
+  const headers = cached.headers;
   const colId = headers.indexOf('StudentID');
   const letters = [];
-  for (let i = 1; i < data.length; i++) {
-    if (sameId_(data[i][colId], studentId)) letters.push(rowToObject_(headers, data[i]));
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (sameId_(cached.rows[i][colId], studentId)) letters.push(rowToObject_(headers, cached.rows[i]));
   }
   letters.sort(function (a, b) { return new Date(b.CreatedAt) - new Date(a.CreatedAt); });
   return letters;
@@ -914,13 +911,12 @@ function thaiShortDateText_(v) {
 
 /** ประวัติคะแนนล่าสุดของนักเรียน (แสดงใน LIFF) */
 function getRecentScoreLogs_(studentId, limit) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.SCORE_LOGS);
+  const headers = cached.headers;
   const colId = headers.indexOf('StudentID');
   const logs = [];
-  for (let i = 1; i < data.length; i++) {
-    if (sameId_(data[i][colId], studentId)) logs.push(rowToObject_(headers, data[i]));
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (sameId_(cached.rows[i][colId], studentId)) logs.push(rowToObject_(headers, cached.rows[i]));
   }
   logs.sort(function (a, b) { return new Date(b.Timestamp) - new Date(a.Timestamp); });
   return logs.slice(0, limit).map(function (l) {
@@ -944,9 +940,8 @@ function getLiffId_() {
 // ============================================================
 
 function getAllAnnouncements_() {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.ANNOUNCEMENTS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.ANNOUNCEMENTS);
+  const headers = cached.headers;
   const colId = headers.indexOf('AnnouncementID');
   const colTitle = headers.indexOf('Title');
   const colMsg = headers.indexOf('Message');
@@ -955,16 +950,16 @@ function getAllAnnouncements_() {
   const colActive = headers.indexOf('Active');
   const colBy = headers.indexOf('CreatedBy');
   const out = [];
-  for (let i = 1; i < data.length; i++) {
-    if (!data[i][colId]) continue;
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (!cached.rows[i][colId]) continue;
     out.push({
-      announcementId: data[i][colId],
-      title: data[i][colTitle],
-      message: data[i][colMsg],
-      type: data[i][colType] || 'announcement',
-      createdAt: data[i][colCreated] ? thaiTimestampText_(data[i][colCreated]) : '-',
-      active: data[i][colActive] !== false,
-      createdBy: data[i][colBy] || '-'
+      announcementId: cached.rows[i][colId],
+      title: cached.rows[i][colTitle],
+      message: cached.rows[i][colMsg],
+      type: cached.rows[i][colType] || 'announcement',
+      createdAt: cached.rows[i][colCreated] ? thaiTimestampText_(cached.rows[i][colCreated]) : '-',
+      active: cached.rows[i][colActive] !== false,
+      createdBy: cached.rows[i][colBy] || '-'
     });
   }
   out.reverse(); // ใหม่สุดก่อน
@@ -1013,12 +1008,12 @@ function api_deleteAnnouncement_(token, announcementId) {
       return { success: false, message: 'คุณไม่มีสิทธิ์ลบประกาศ' };
     }
     const sheet = getSheet(CONFIG.SHEET_NAMES.ANNOUNCEMENTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.ANNOUNCEMENTS);
+    const headers = cached.headers;
     const colId = headers.indexOf('AnnouncementID');
-    for (let i = data.length - 1; i >= 1; i--) {
-      if (data[i][colId] === announcementId) {
-        sheet.deleteRow(i + 1);
+    for (let i = cached.rows.length - 1; i >= 0; i--) {
+      if (cached.rows[i][colId] === announcementId) {
+        sheet.deleteRow(i + 2);
         return { success: true };
       }
     }
@@ -1042,16 +1037,15 @@ function apiLiffGetAnnouncements(lineUserId) {
 
 /** LINE user ทั้งหมดที่ผูกบัญชี (ไม่ซ้ำ) สำหรับส่งข่าว/ประกาศ */
 function getAllActiveBindingsUsers_() {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.LINE_BINDINGS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LINE_BINDINGS);
+  const headers = cached.headers;
   const colLine = headers.indexOf('LineUserID');
   const colActive = headers.indexOf('Active');
   const seen = {};
   const out = [];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][colActive] === false) continue;
-    const uid = data[i][colLine];
+  for (let i = 0; i < cached.rows.length; i++) {
+    if (cached.rows[i][colActive] === false) continue;
+    const uid = cached.rows[i][colLine];
     if (uid && !seen[uid]) { seen[uid] = true; out.push(uid); }
   }
   return out;

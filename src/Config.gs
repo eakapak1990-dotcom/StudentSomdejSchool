@@ -225,10 +225,18 @@ function invalidateSheetCache_(sheetName) {
  * @return {number} คอลัมน์ index ของ Permissions (0-based)
  */
 function ensurePermissionsColumn_() {
+  // เช็ค CacheService ก่อน — ถ้าเคยตรวจแล้วว่ามีคอลัมน์ Permissions ก็ไม่ต้องเรียกซ้ำ
+  const permCache = CacheService.getScriptCache();
+  const cachedResult = permCache.get('PERM_COL_EXISTS');
+  if (cachedResult !== null) return Number(cachedResult);
+
   const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const colPerm = headers.indexOf('Permissions');
-  if (colPerm !== -1) return colPerm; // มีแล้ว
+  if (colPerm !== -1) {
+    permCache.put('PERM_COL_EXISTS', String(colPerm), 3600);
+    return colPerm; // มีแล้ว
+  }
 
   // เพิ่มคอลัมน์ใหม่ถัดจากคอลัมน์สุดท้าย
   const newColPos = headers.length + 1;
@@ -247,5 +255,6 @@ function ensurePermissionsColumn_() {
 
   invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
   Logger.log('ensurePermissionsColumn_: เพิ่มคอลัมน์ Permissions และ migrate ผู้ใช้เดิมแล้ว');
+  permCache.put('PERM_COL_EXISTS', String(newColPos - 1), 3600);
   return newColPos - 1; // 0-based index
 }

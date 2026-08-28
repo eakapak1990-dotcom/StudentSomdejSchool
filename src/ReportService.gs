@@ -151,31 +151,29 @@ function api_getScoreOverview_(token, filters) {
     const { start, end } = resolveDateRange_(filters || {});
 
     // --- โหลดข้อมูลนักเรียนทั้งหมดไว้ล่วงหน้า (ใช้ join ชื่อ + สร้าง Top ดีเด่น) ---
-    const studSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studData = studSheet.getDataRange().getValues();
-    const studHeaders = studData[0];
-    const students = studData.slice(1).map(row => rowToObject_(studHeaders, row));
+    const studData = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const studHeaders = studData.headers;
+    const students = studData.rows.map(row => rowToObject_(studHeaders, row));
     const studentMap = {};
     students.forEach(s => { studentMap[s.StudentID] = s; });
 
     // --- อ่าน ScoreLogs ---
-    const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
-    const logData = logSheet.getDataRange().getValues();
-    const logHeaders = logData[0];
+    const logData = getCachedSheetData_(CONFIG.SHEET_NAMES.SCORE_LOGS);
+    const logHeaders = logData.headers;
     const colTs = logHeaders.indexOf('Timestamp');
     const colType = logHeaders.indexOf('Type');
     const colAmount = logHeaders.indexOf('Amount');
     const colStudentId = logHeaders.indexOf('StudentID');
 
     const logsInRange = [];
-    for (let i = 1; i < logData.length; i++) {
-      const ts = new Date(logData[i][colTs]);
+    for (let i = 0; i < logData.rows.length; i++) {
+      const ts = new Date(logData.rows[i][colTs]);
       if (ts >= start && ts <= end) {
         logsInRange.push({
           date: ts,
-          type: logData[i][colType],
-          amount: Number(logData[i][colAmount]) || 0,
-          studentId: logData[i][colStudentId]
+          type: logData.rows[i][colType],
+          amount: Number(logData.rows[i][colAmount]) || 0,
+          studentId: logData.rows[i][colStudentId]
         });
       }
     }
@@ -266,17 +264,15 @@ function api_getRoomReasonStats_(token, filters) {
     const { start, end } = resolveDateRange_(filters || {});
 
     // --- โหลดนักเรียนไว้ join ห้อง ---
-    const studSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studData = studSheet.getDataRange().getValues();
-    const studHeaders = studData[0];
-    const students = studData.slice(1).map(row => rowToObject_(studHeaders, row));
+    const studData = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const studHeaders = studData.headers;
+    const students = studData.rows.map(row => rowToObject_(studHeaders, row));
     const studentMap = {};
     students.forEach(s => { studentMap[s.StudentID] = s; });
 
     // --- อ่าน ScoreLogs เฉพาะ deduct ในช่วงเวลาที่กรอง ---
-    const logSheet = getSheet(CONFIG.SHEET_NAMES.SCORE_LOGS);
-    const logData = logSheet.getDataRange().getValues();
-    const logHeaders = logData[0];
+    const logData = getCachedSheetData_(CONFIG.SHEET_NAMES.SCORE_LOGS);
+    const logHeaders = logData.headers;
     const colTs = logHeaders.indexOf('Timestamp');
     const colType = logHeaders.indexOf('Type');
     const colAmount = logHeaders.indexOf('Amount');
@@ -286,14 +282,14 @@ function api_getRoomReasonStats_(token, filters) {
     const roomMap = {};    // 'ม.1/1' -> { count, totalDeducted }
     const reasonMap = {};  // 'มาโรงเรียนสาย' -> count
 
-    for (let i = 1; i < logData.length; i++) {
-      if (logData[i][colType] !== 'deduct') continue;
-      const ts = new Date(logData[i][colTs]);
+    for (let i = 0; i < logData.rows.length; i++) {
+      if (logData.rows[i][colType] !== 'deduct') continue;
+      const ts = new Date(logData.rows[i][colTs]);
       if (ts < start || ts > end) continue;
 
-      const studentId = logData[i][colStudentId];
-      const amount = Number(logData[i][colAmount]) || 0;
-      const reason = String(logData[i][colReason] || 'ไม่ระบุเหตุผล').trim();
+      const amount = Number(logData.rows[i][colAmount]) || 0;
+      const reason = String(logData.rows[i][colReason] || 'ไม่ระบุเหตุผล').trim();
+      const studentId = logData.rows[i][colStudentId];
       const st = studentMap[studentId];
       const roomKey = st ? (st.Grade + '/' + st.Room) : 'ไม่ทราบห้อง';
 
@@ -361,15 +357,14 @@ function api_getLetterLeaveStats_(token, filters) {
     }
 
     // หนังสือเชิญ: นับตามวันที่สร้างเอกสาร และแยกสถานะปัจจุบันของเอกสารนั้น
-    const letterSheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
-    const letterData = letterSheet.getDataRange().getValues();
-    const letterHeaders = letterData[0] || [];
+    const letterData = getCachedSheetData_(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
+    const letterHeaders = letterData.headers || [];
     const letterStatusCol = letterHeaders.indexOf('Status');
     const letterCreatedCol = letterHeaders.indexOf('CreatedAt');
     const letterSummary = { total: 0, draft: 0, confirmed: 0 };
     const letterTrendMap = {};
 
-    letterData.slice(1).forEach(row => {
+    letterData.rows.forEach(row => {
       const createdAt = row[letterCreatedCol];
       if (!isInRange(createdAt)) return;
 
@@ -390,15 +385,14 @@ function api_getLetterLeaveStats_(token, filters) {
     const letterLabels = Object.keys(letterTrendMap).sort();
 
     // คำร้องออกนอกโรงเรียน: นับตามวันที่ยื่นคำร้อง และแยกตามสถานะปัจจุบัน
-    const leaveSheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
-    const leaveData = leaveSheet.getDataRange().getValues();
-    const leaveHeaders = leaveData[0] || [];
+    const leaveData = getCachedSheetData_(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+    const leaveHeaders = leaveData.headers || [];
     const leaveStatusCol = leaveHeaders.indexOf('Status');
     const leaveCreatedCol = leaveHeaders.indexOf('CreatedAt');
     const leaveSummary = { total: 0, pending: 0, approved: 0, rejected: 0 };
     const leaveTrendMap = {};
 
-    leaveData.slice(1).forEach(row => {
+    leaveData.rows.forEach(row => {
       const createdAt = row[leaveCreatedCol];
       if (!isInRange(createdAt)) return;
 

@@ -40,12 +40,11 @@ function buildLetterNo_(suffix) {
 }
 
 function isLetterNoInUse_(letterNo, excludeLetterId) {
-  const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
+  const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
+  const headers = cached.headers;
   const idCol = headers.indexOf('LetterID');
   const noCol = headers.indexOf('LetterNo');
-  return data.slice(1).some(row => row[idCol] !== excludeLetterId && row[noCol] === letterNo);
+  return cached.rows.some(row => row[idCol] !== excludeLetterId && row[noCol] === letterNo);
 }
 
 /**
@@ -278,13 +277,13 @@ function api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, l
     }
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.INVITATION_LETTERS);
+    const headers = cached.headers;
     const colId = headers.indexOf('LetterID');
 
     let rowIndex = -1, letterObj = null;
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][colId] === letterId) { rowIndex = i; letterObj = rowToObject_(headers, data[i]); break; }
+    for (let i = 0; i < cached.rows.length; i++) {
+      if (cached.rows[i][colId] === letterId) { rowIndex = i; letterObj = rowToObject_(headers, cached.rows[i]); break; }
     }
     if (rowIndex === -1) return { success: false, message: 'ไม่พบหนังสือเชิญนี้' };
     if (letterObj.Status !== 'draft') return { success: false, message: 'หนังสือนี้ถูกดำเนินการไปแล้ว' };
@@ -368,9 +367,9 @@ function api_confirmLetter_(token, letterId, appointmentDate, appointmentTime, l
     const pdfFile = targetFolder.createFile(pdfBlob).setName(copyName + '.pdf');
     DriveApp.getFileById(copyFile.getId()).setTrashed(true);
 
-    sheet.getRange(rowIndex + 1, headers.indexOf('Status') + 1).setValue('confirmed');
-    sheet.getRange(rowIndex + 1, headers.indexOf('PdfFileID') + 1).setValue(pdfFile.getId());
-    sheet.getRange(rowIndex + 1, headers.indexOf('ConfirmedAt') + 1).setValue(new Date());
+    sheet.getRange(rowIndex + 2, headers.indexOf('Status') + 1).setValue('confirmed');
+    sheet.getRange(rowIndex + 2, headers.indexOf('PdfFileID') + 1).setValue(pdfFile.getId());
+    sheet.getRange(rowIndex + 2, headers.indexOf('ConfirmedAt') + 1).setValue(new Date());
 
     addTimelineEvent_(letterObj.StudentID, 'invite',
       'ออกหนังสือเชิญผู้ปกครองเรียบร้อยแล้ว เลขที่ ' + letterObj.LetterNo,

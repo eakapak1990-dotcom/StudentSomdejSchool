@@ -67,10 +67,9 @@ function api_getLeaveRequests_(token, filters) {
     }
 
     filters = filters || {};
-    const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    let requests = data.slice(1).map(row => rowToObject_(headers, row));
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+    const headers = cached.headers;
+    let requests = cached.rows.map(row => rowToObject_(headers, row));
 
     if (filters.status && filters.status !== 'all') {
       requests = requests.filter(r => r.Status === filters.status);
@@ -79,11 +78,10 @@ function api_getLeaveRequests_(token, filters) {
     requests.sort((a, b) => new Date(b.CreatedAt) - new Date(a.CreatedAt));
 
     // เติมชื่อ/ชั้นเรียนนักเรียนให้แต่ละคำร้อง
-    const studentSheet = getSheet(CONFIG.SHEET_NAMES.STUDENTS);
-    const studentData = studentSheet.getDataRange().getValues();
-    const studentHeaders = studentData[0];
+    const studentCached = getCachedSheetData_(CONFIG.SHEET_NAMES.STUDENTS);
+    const studentHeaders = studentCached.headers;
     const studentMap = {};
-    studentData.slice(1).forEach(row => {
+    studentCached.rows.forEach(row => {
       const obj = rowToObject_(studentHeaders, row);
       studentMap[obj.StudentID] = obj;
     });
@@ -95,7 +93,7 @@ function api_getLeaveRequests_(token, filters) {
     });
 
     const colStatus = headers.indexOf('Status');
-    const allRows = data.slice(1);
+    const allRows = cached.rows;
     const pendingCount = allRows.filter(row => row[colStatus] === 'pending').length;
     const approvedCount = allRows.filter(row => row[colStatus] === 'approved').length;
     const rejectedCount = allRows.filter(row => row[colStatus] === 'rejected').length;
@@ -128,22 +126,22 @@ function api_updateLeaveStatus_(token, requestId, status, approvalReason) {
     lock.waitLock(30000);
     try {
       const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
-      const data = sheet.getDataRange().getValues();
-      const headers = data[0];
+      const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+      const headers = cached.headers;
       const colId = headers.indexOf('RequestID');
 
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][colId] === requestId) {
-          const rowObj = rowToObject_(headers, data[i]);
+      for (let i = 0; i < cached.rows.length; i++) {
+        if (cached.rows[i][colId] === requestId) {
+          const rowObj = rowToObject_(headers, cached.rows[i]);
           if (rowObj.Status !== 'pending') {
             return { success: false, message: 'คำร้องนี้ถูกดำเนินการไปแล้ว' };
           }
 
-          sheet.getRange(i + 1, headers.indexOf('Status') + 1).setValue(status);
-          sheet.getRange(i + 1, headers.indexOf('ApprovedBy') + 1).setValue(session.userId);
-          sheet.getRange(i + 1, headers.indexOf('ApprovedByName') + 1).setValue(session.fullName);
-          sheet.getRange(i + 1, headers.indexOf('ApprovalReason') + 1).setValue(approvalReason || '');
-          sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+          sheet.getRange(i + 2, headers.indexOf('Status') + 1).setValue(status);
+          sheet.getRange(i + 2, headers.indexOf('ApprovedBy') + 1).setValue(session.userId);
+          sheet.getRange(i + 2, headers.indexOf('ApprovedByName') + 1).setValue(session.fullName);
+          sheet.getRange(i + 2, headers.indexOf('ApprovalReason') + 1).setValue(approvalReason || '');
+          sheet.getRange(i + 2, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
 
           const studentId = rowObj.StudentID;
           const statusText = status === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ';
@@ -192,13 +190,13 @@ function api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTi
     lock.waitLock(30000);
     try {
       const sheet = getSheet(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
-      const data = sheet.getDataRange().getValues();
-      const headers = data[0];
+      const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.LEAVE_REQUESTS);
+      const headers = cached.headers;
       const colId = headers.indexOf('RequestID');
 
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][colId] === requestId) {
-          const rowObj = rowToObject_(headers, data[i]);
+      for (let i = 0; i < cached.rows.length; i++) {
+        if (cached.rows[i][colId] === requestId) {
+          const rowObj = rowToObject_(headers, cached.rows[i]);
           if (rowObj.Status !== 'approved') {
             return { success: false, message: 'บันทึกเวลาออกจริงได้เฉพาะคำร้องที่อนุมัติแล้ว' };
           }
@@ -215,8 +213,8 @@ function api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTi
           }
           let outNotified = false;
           if (outTime) {
-            sheet.getRange(i + 1, headers.indexOf('ActualOutTime') + 1).setValue(outTime);
-            sheet.getRange(i + 1, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
+            sheet.getRange(i + 2, headers.indexOf('ActualOutTime') + 1).setValue(outTime);
+            sheet.getRange(i + 2, headers.indexOf('UpdatedAt') + 1).setValue(new Date());
             // แจ้งเตือนผู้ปกครองว่านักเรียนออกจากโรงเรียนแล้ว
             try {
               const lineRes = notifyLeaveActualOutEvent_(rowObj.StudentID, rowObj.Reason, outTime, session.fullName, new Date());
@@ -226,7 +224,7 @@ function api_updateLeaveActualTimes_(token, requestId, actualOutTime, actualInTi
             }
           }
           if (inTime) {
-            sheet.getRange(i + 1, headers.indexOf('ActualInTime') + 1).setValue(inTime);
+            sheet.getRange(i + 2, headers.indexOf('ActualInTime') + 1).setValue(inTime);
           }
           logAudit_(session, 'UPDATE', CONFIG.SHEET_NAMES.LEAVE_REQUESTS, requestId, '',
             'บันทึกเวลาออกจริง: ' + (outTime || '-') + ' · กลับถึง: ' + (inTime || '-'));

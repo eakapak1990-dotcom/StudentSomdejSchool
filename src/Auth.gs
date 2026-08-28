@@ -31,9 +31,15 @@ function handleLogin_(username, password) {
 
   // ใช้ cached Users sheet (ไม่อ่านใหม่ทุกครั้ง)
   // ensurePermissionsColumn_ ก่อนเพื่อรองรับระบบเดิมที่ยังไม่มีคอลัมน์ Permissions
-  let colPerm;
-  try { colPerm = ensurePermissionsColumn_(); } catch (e) { colPerm = -1; }
-  invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
+  // เช็ค CacheService ก่อน — ถ้าเคยตรวจแล้วว่ามีคอลัมน์ Permissions ก็ไม่ต้องเรียกซ้ำ
+  const permCache = CacheService.getScriptCache();
+  let colPerm = permCache.get('PERM_COL_EXISTS');
+  if (colPerm === null) {
+    try { colPerm = ensurePermissionsColumn_(); } catch (e) { colPerm = -1; }
+    if (colPerm !== -1) permCache.put('PERM_COL_EXISTS', String(colPerm), 3600);
+  } else {
+    colPerm = Number(colPerm);
+  }
   const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
   const headers = cached.headers;
 
@@ -243,15 +249,15 @@ function apiVerifyAdminPassword_(token, username, password) {
     if (!username || !password) return { success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
 
     const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
+    const cached = getCachedSheetData_(CONFIG.SHEET_NAMES.USERS);
+    const headers = cached.headers;
     const colUsername = headers.indexOf('Username');
     const colPasswordHash = headers.indexOf('PasswordHash');
     const colFullName = headers.indexOf('FullName');
     const colActive = headers.indexOf('Active');
 
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
+    for (let i = 0; i < cached.rows.length; i++) {
+      const row = cached.rows[i];
       if (row[colUsername] === username) {
         if (!row[colActive]) return { success: false, message: 'บัญชีนี้ถูกระงับการใช้งาน' };
         if (!verifyPassword_(password, String(row[colPasswordHash] || ''))) {
@@ -260,7 +266,7 @@ function apiVerifyAdminPassword_(token, username, password) {
         // ยกระดับ hash รุ่นเก่าให้เป็น PBKDF2 อัตโนมัติ
         if (String(row[colPasswordHash] || '').indexOf('pbkdf2:') !== 0) {
           try {
-            sheet.getRange(i + 1, colPasswordHash + 1).setValue(hashPassword_(password));
+            sheet.getRange(i + 2, colPasswordHash + 1).setValue(hashPassword_(password));
           } catch (e) { Logger.log('ยกระดับ hash ล้มเหลว: ' + e.message); }
         }
         return { success: true, fullName: row[colFullName] };

@@ -511,6 +511,8 @@ function getStudentScoreSummary_(studentId, currentScore) {
 
   let totalDeducted = 0;
   let deductedCount = 0;
+  let netChange = 0;
+  
   for (let i = 0; i < cached.rows.length; i++) {
     if (!sameId_(cached.rows[i][colId], studentId)) continue;
     const type = cached.rows[i][colType];
@@ -518,17 +520,22 @@ function getStudentScoreSummary_(studentId, currentScore) {
     if (type === 'deduct') {
       totalDeducted += amount;
       deductedCount++;
+      netChange -= amount;
     } else if (type === 'add') {
       totalDeducted -= amount;
+      netChange += amount;
     }
   }
   totalDeducted = Math.max(0, totalDeducted);
 
+  const initialScore = Number(CONFIG.SCORE.INITIAL_SCORE) || 100;
+  const calculatedCurrentScore = initialScore + netChange;
+
   return {
-    initialScore: Number(CONFIG.SCORE.INITIAL_SCORE) || 100,
+    initialScore: initialScore,
     totalDeducted: totalDeducted,
     deductedCount: deductedCount,
-    currentScore: Number(currentScore) || 0
+    currentScore: calculatedCurrentScore
   };
 }
 

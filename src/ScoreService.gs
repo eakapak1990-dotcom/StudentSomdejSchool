@@ -42,9 +42,27 @@ function api_addScore_(token, payload) {
     for (let i = 0; i < cached.rows.length; i++) {
       if (sameId_(cached.rows[i][colId], studentId)) {
         rowIndex = i;
-        oldScore = Number(cached.rows[i][colScore]) || 0;
         phase = cached.rows[i][colPhase];
         studentName = (cached.rows[i][colPrefix] || '') + (cached.rows[i][colFirstName] || '') + ' ' + (cached.rows[i][colLastName] || '');
+        
+        // คำนวณคะแนนเดิมที่แท้จริงจากประวัติ (SCORE_LOGS) ป้องกันค่าว่างในฐานข้อมูล
+        const scoreLogs = getCachedSheetData_(CONFIG.SHEET_NAMES.SCORE_LOGS);
+        const logIdCol = scoreLogs.headers.indexOf('StudentID');
+        const logTypeCol = scoreLogs.headers.indexOf('Type');
+        const logAmtCol = scoreLogs.headers.indexOf('Amount');
+        let netChange = 0;
+        if (scoreLogs && scoreLogs.rows) {
+          for (let j = 0; j < scoreLogs.rows.length; j++) {
+            if (sameId_(scoreLogs.rows[j][logIdCol], studentId)) {
+              let t = scoreLogs.rows[j][logTypeCol];
+              let a = Number(scoreLogs.rows[j][logAmtCol]) || 0;
+              if (t === 'add') netChange += a;
+              else if (t === 'deduct') netChange -= a;
+            }
+          }
+        }
+        oldScore = (Number(CONFIG.SCORE.INITIAL_SCORE) || 100) + netChange;
+        
         break;
       }
     }

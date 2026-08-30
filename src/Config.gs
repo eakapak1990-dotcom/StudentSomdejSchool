@@ -105,6 +105,10 @@ const CONFIG = {
 var _cachedSpreadsheet = null;
 var _cachedSheetData = {};   // { sheetName: { headers: [], rows: [] } }
 var _cachedConfigMap = null; // { key: value } สำหรับ Config sheet
+var _sheetCache = {};        // { sheetName: Sheet } cache Sheet objects ใน request scope
+
+// Cross-execution cache TTL (วินาที)
+const SHEET_CACHE_TTL = 300; // 5 นาที
 
 /**
  * เปิด Spreadsheet หลักของระบบ (cached — ไม่เปิดใหม่ทุกครั้ง)
@@ -119,28 +123,52 @@ function getSpreadsheet() {
 }
 
 /**
- * เปิด Sheet ตามชื่อที่กำหนด
+ * เปิด Sheet ตามชื่อที่กำหนด (cached ใน request scope — ไม่เปิดซ้ำใน execution เดียวกัน)
  */
 function getSheet(sheetName) {
+  if (_sheetCache[sheetName]) return _sheetCache[sheetName];
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     throw new Error(`ไม่พบ Sheet ชื่อ: ${sheetName}`);
   }
+  _sheetCache[sheetName] = sheet;
   return sheet;
 }
 
 /**
  * ดึงข้อมูลทั้งชีตเป็น { headers: [], rows: [] } แบบ cached
  * — ใช้แทน sheet.getDataRange().getValues() ที่เรียกซ้ำๆ
+ * — 2 layers: in-memory (request scope) + CacheService (cross-execution, TTL 5 นาที)
  * — rows เป็น array of arrays (ไม่ convert เป็น object เพื่อความเร็ว)
  */
 function getCachedSheetData_(sheetName) {
+  // Layer 1: in-memory cache (request scope)
   if (_cachedSheetData[sheetName]) return _cachedSheetData[sheetName];
+
+  // Layer 2: CacheService (cross-execution)
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'SHEET_DATA_' + sheetName;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      const result = JSON.parse(cached);
+      _cachedSheetData[sheetName] = result;
+      return result;
+    } catch (e) { /* cache corrupt — อ่าน Sheet ใหม่ */ }
+  }
+
+  // Layer 3: อ่านจาก Sheet จริง
   const sheet = getSheet(sheetName);
   const data = sheet.getDataRange().getValues();
   const result = { headers: data[0] || [], rows: data.slice(1) };
   _cachedSheetData[sheetName] = result;
+
+  // เก็บลง CacheService (ข้าม execution) — ใช้ JSON.stringify
+  try {
+    cache.put(cacheKey, JSON.stringify(result), SHEET_CACHE_TTL);
+  } catch (e) { /* ข้อมูลใหญ่เกิน cache limit — ข้ามไป */ }
+
   return result;
 }
 
@@ -201,18 +229,26 @@ function setConfigValue_(key, value, description) {
  * (เพิ่ม/แก้ไข/ลบ ข้อมูลใน Sheets)
  */
 function invalidateAllCache_() {
+  const cache = CacheService.getScriptCache();
+  // ลบ cross-execution cache ของทุก sheet
+  Object.keys(CONFIG.SHEET_NAMES).forEach(function (key) {
+    cache.remove('SHEET_DATA_' + CONFIG.SHEET_NAMES[key]);
+  });
   _cachedSpreadsheet = null;
   _cachedSheetData = {};
   _cachedConfigMap = null;
+  _sheetCache = {};
 }
 
 /**
  * ล้าง cache เฉพาะชีตที่ระบุ — เรียกหลังเขียนข้อมูลชีตนั้นๆ
+ * ล้างทั้ง in-memory และ CacheService (cross-execution)
  */
 function invalidateSheetCache_(sheetName) {
   if (_cachedSheetData[sheetName]) {
     delete _cachedSheetData[sheetName];
   }
+  CacheService.getScriptCache().remove('SHEET_DATA_' + sheetName);
   // ถ้าแก้ Config ต้อง clear config map ด้วย
   if (sheetName === CONFIG.SHEET_NAMES.CONFIG) {
     _cachedConfigMap = null;

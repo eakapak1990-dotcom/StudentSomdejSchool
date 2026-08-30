@@ -4,7 +4,6 @@
 
 const LOGIN_MAX_ATTEMPTS = 5;          // จำนวนครั้งที่ผิดก่อนล็อก
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // ล็อก 15 นาที
-const PBKDF2_ITERATIONS = 1000;  // ปลอดภัยเพียงพอ + เร็วขึ้น ~10x
 
 /**
  * จัดการ Login — ตรวจสอบ username/password จาก Sheet Users
@@ -94,12 +93,13 @@ function handleLogin_(username, password) {
       // สร้าง session (เร็ว — ไม่เขียน Sheets)
       const token = createSession_(row[colUserID], row[colFullName], row[colRole], userPermissions);
 
-      // อัปเดต LastLogin + hash upgrade — เขียนทีเดียวแบบ async (ไม่ blocking response)
+      // อัปเดต LastLogin + hash upgrade — เขียนแยกกัน (ไม่ทับคอลัมน์อื่น)
       try {
         const sheet = getSheet(CONFIG.SHEET_NAMES.USERS);
         sheet.getRange(i + 2, headers.indexOf('LastLogin') + 1).setValue(new Date());
-        // ยกระดับ hash รุ่นเก่าเป็น PBKDF2 อัตโนมัติ (เฉพาะครั้งแรกที่ login ด้วยรหัสเก่า)
-        if (String(row[colPasswordHash] || '').indexOf('pbkdf2:') !== 0) {
+        // ยกระดับ hash รุ่นเก่า (pbkdf2 หรือ SHA-256 ไร้ salt) เป็น sha256salt อัตโนมัติ
+        const storedHash = String(row[colPasswordHash] || '');
+        if (storedHash.indexOf('sha256salt:') !== 0) {
           sheet.getRange(i + 2, colPasswordHash + 1).setValue(hashPassword_(password));
         }
         invalidateSheetCache_(CONFIG.SHEET_NAMES.USERS);
@@ -123,34 +123,53 @@ function handleLogin_(username, password) {
 }
 
 // ============================================
-// การแฮชรหัสผ่าน: PBKDF2-HMAC-SHA256 + salt (ย้อนหลังรองรับ SHA-256 ไร้ salt)
+// การแฮชรหัสผ่าน: SHA-256 + salt (รวดเร็ว 1 RPC)
+// รองรับย้อนหลัง: pbkdf2:iter:salt:hash, sha256salt:salt:hash, และ SHA-256 ไร้ salt
 // ============================================
 
-/** เข้ารหัส password ด้วย PBKDF2-HMAC-SHA256 + salt เฉพาะผู้ใช้ — รูปแบบ 'pbkdf2:iter:salt:hash' */
+/** เข้ารหัส password ด้วย SHA-256 + salt — รูปแบบ 'sha256salt:salt:hash' (1 RPC) */
 function hashPassword_(password) {
-  const salt = Utilities.getUuid().replace(/-/g, '').substr(0, 16); // 16 ตัวอักษร hex
-  return 'pbkdf2:' + PBKDF2_ITERATIONS + ':' + salt + ':' + pbkdf2Sha256Hex_(password, salt, PBKDF2_ITERATIONS);
+  const salt = Utilities.getUuid().replace(/-/g, '').substr(0, 16);
+  const hash = sha256Hex_(password + salt);
+  return 'sha256salt:' + salt + ':' + hash;
 }
 
-/** ตรวจสอบ password กับค่าในฐาน — รองรับทั้งรุ่นใหม่ (PBKDF2) และรุ่นเก่า (SHA-256) */
+/** ตรวจสอบ password กับค่าในฐาน — รองรับทั้ง sha256salt, pbkdf2 และ SHA-256 ไร้ salt */
 function verifyPassword_(password, stored) {
   if (!stored) return false;
+
+  // รุ่นใหม่: sha256salt:salt:hash
+  if (stored.indexOf('sha256salt:') === 0) {
+    const parts = stored.split(':');
+    const salt = parts[1] || '';
+    const expected = parts[2] || '';
+    if (!salt || !expected) return false;
+    return sha256Hex_(password + salt) === expected;
+  }
+
+  // รุ่นเก่า: pbkdf2:iter:salt:hash (ช้า — ใช้ตอน verify แล้ว upgrade)
   if (stored.indexOf('pbkdf2:') === 0) {
     const parts = stored.split(':');
-    const iter = Math.max(1, Number(parts[1]) || PBKDF2_ITERATIONS);
+    const iter = Math.max(1, Number(parts[1]) || 1000);
     const salt = parts[2] || '';
     const expected = parts[3] || '';
     if (!salt || !expected) return false;
     return pbkdf2Sha256Hex_(password, salt, iter) === expected;
   }
-  // รุ่นเก่า: SHA-256 ไร้ salt (เก็บ hex ตรง ๆ) — รองรับเพื่อไม่ให้ผู้ใช้เดิมล็อกอินไม่ได้
+
+  // รุ่นเก่าสุด: SHA-256 ไร้ salt
   return hashPasswordLegacy_(password) === stored;
+}
+
+/** SHA-256 → hex string (1 RPC) */
+function sha256Hex_(input) {
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input, Utilities.Charset.UTF_8);
+  return digest.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
 }
 
 /** รหัสผ่านรุ่นเก่า (SHA-256 ไร้ salt) — ใช้เฉพาะเทียบ hash เดิม */
 function hashPasswordLegacy_(password) {
-  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, password);
-  return digest.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
+  return sha256Hex_(password);
 }
 
 /** hex → byte array */
@@ -191,14 +210,24 @@ function pbkdf2Sha256Hex_(password, saltHex, iterations) {
 // Session (CacheService) + Session version
 // ============================================
 
-/** อ่านเวอร์ชัน session ของผู้ใช้ (ใช้เพิกถอน session เก่าหลังเปลี่ยนรหัส) */
+/** อ่านเวอร์ชัน session ของผู้ใช้ (ใช้เพิกถอน session เก่าหลังเปลี่ยนรหัส) — อ่านจาก CacheService ก่อน (เร็วกว่า PropertiesService) */
 function getSessionVersion_(userId) {
-  return Number(PropertiesService.getScriptProperties().getProperty('SESSION_VER_' + userId) || 0);
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'SESSION_VER_' + userId;
+  const cached = cache.get(cacheKey);
+  if (cached !== null) return Number(cached);
+  // Fallback: อ่านจาก PropertiesService แล้ว cache ไว้
+  const ver = Number(PropertiesService.getScriptProperties().getProperty(cacheKey) || 0);
+  cache.put(cacheKey, String(ver), 1800); // cache 30 นาที
+  return ver;
 }
 
-/** เพิ่มเวอร์ชัน session → session เก่าทั้งหมดของผู้นั้นใช้ไม่ได้ทันที */
+/** เพิ่มเวอร์ชัน session → session เก่าทั้งหมดของผู้นั้นใช้ไม่ได้ทันที — เขียนทั้ง PropertiesService และ CacheService */
 function bumpSessionVersion_(userId) {
-  PropertiesService.getScriptProperties().setProperty('SESSION_VER_' + userId, String(getSessionVersion_(userId) + 1));
+  const cacheKey = 'SESSION_VER_' + userId;
+  const newVer = getSessionVersion_(userId) + 1;
+  PropertiesService.getScriptProperties().setProperty(cacheKey, String(newVer));
+  CacheService.getScriptCache().put(cacheKey, String(newVer), 1800);
 }
 
 /** สร้าง Session token เก็บใน CacheService */
@@ -263,8 +292,9 @@ function apiVerifyAdminPassword_(token, username, password) {
         if (!verifyPassword_(password, String(row[colPasswordHash] || ''))) {
           return { success: false, message: 'รหัสผ่านไม่ถูกต้อง' };
         }
-        // ยกระดับ hash รุ่นเก่าให้เป็น PBKDF2 อัตโนมัติ
-        if (String(row[colPasswordHash] || '').indexOf('pbkdf2:') !== 0) {
+        // ยกระดับ hash รุ่นเก่า (pbkdf2 หรือ SHA-256 ไร้ salt) เป็น sha256salt อัตโนมัติ
+        const storedHash = String(row[colPasswordHash] || '');
+        if (storedHash.indexOf('sha256salt:') !== 0) {
           try {
             sheet.getRange(i + 2, colPasswordHash + 1).setValue(hashPassword_(password));
           } catch (e) { Logger.log('ยกระดับ hash ล้มเหลว: ' + e.message); }
